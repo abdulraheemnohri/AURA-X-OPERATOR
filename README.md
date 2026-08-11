@@ -2,42 +2,43 @@
 
 **Your Phone. Your Operator. Under Your Command.**
 
-A local-first Android automation assistant for personal sideloading. It uses Android AccessibilityService only after explicit user enablement and keeps sensitive interaction behind hard guardrails.
+A sideloaded, local-first Android automation assistant built around AccessibilityService, deterministic safety policies, Room audit logs, Compose UI, and a native llama.cpp runtime.
+
+## Current implementation
+
+- Android 9+ / API 28 minimum, API 34 target
+- Kotlin + Jetpack Compose + Material 3
+- AccessibilityService with system-wide observation
+- Password, sensitive-screen, blocked-package, and private-browsing gates
+- Three-second visible click countdown
+- Persistent floating status indicator
+- Tap indicator or press Volume Down to abort
+- Ongoing notification with **Stop AURA-X Operator**
+- Chrome safe subset: HTTPS search/open flow with sensitive-page blocking
+- YouTube safe subset: search/playback/volume; no likes, subscriptions, comments, or ad interaction
+- Deterministic task planner and policy-aware executor
+- Room conversations, messages, memories, tasks, operator actions, and safety events
+- Local screenshot capture with sensitive/private screen blocking on Android 11+
+- Biometric unlock entry point for Operator mode
+- Local GGUF import and llama.cpp JNI inference
+- GitHub Actions Android build + unit-test workflow
 
 ## Safety model
 
-- Password/credential entry is never automated.
-- Sensitive screens are blocked when detected.
-- Banking/authenticator/settings-security packages are blocked.
-- Volume Down aborts the operator immediately.
-- The floating indicator is visible while the overlay service is active.
-- The notification includes a **Stop AURA-X Operator** action.
-- Private/incognito browsing is detected from visible accessibility text and is not automated.
-- Operator actions and safety events are persisted locally with Room.
-- No model weights are committed to this repository.
+`OBSERVE_ONLY` and `SUGGEST_ONLY` never execute automation. `CONFIRM_ACTIONS` is the recommended default. `FULL_AUTO_LOW_RISK` is limited by tool risk and the same screen-level guardrails; the operator still uses the visible action gate for clicks.
+
+The app intentionally does not automate password entry, financial/payment flows, OTP/security codes, private browsing, YouTube engagement, comments, or ads.
 
 ## Build
 
-Open the project in Android Studio Hedgehog or newer with Android SDK 34, NDK 25.2, CMake 3.22+, Kotlin 1.9.x, and JDK 17. The repository intentionally does not include large model weights or third-party native model sources.
+Open the repository in Android Studio Hedgehog or newer with Android SDK 34, NDK 25.2.9519653, and CMake 3.22.1.
 
-## Models
+The native build fetches pinned llama.cpp release `b10087`, so the first native build requires network access. Runtime inference is local after the model is imported.
 
-See [MODEL_SETUP.md](MODEL_SETUP.md) for the Hugging Face model sources and local integration points.
+## Model
 
-## Scope
+Import `qwen2.5-0.5b-instruct-q4_k_m.gguf` from the official `Qwen/Qwen2.5-0.5B-Instruct-GGUF` Hugging Face repository through **Settings → Import GGUF model**. Model weights are intentionally excluded from Git.
 
-This repository is intended for personal/sideloaded use. It is not designed to conceal automation, bypass authentication, automate payments, or interact with passwords/OTPs.
+## Distribution
 
-## Project structure
-
-- `operator/` — AccessibilityService, screen extraction, guardrails, abort handling
-- `agent/` — planning, risk analysis, verification
-- `tools/` — safe Chrome/YouTube/system integrations
-- `data/` — Room schema and audit records
-- `ui/` — Compose dashboard, chat, operator, tasks, and settings
-- `ai/` — model runtime abstraction and JNI bridge
-- `voice/` — local STT/TTS integration points
-
-## Donation
-
-If this project is useful, support future maintenance through your preferred donation channel.
+This project is designed for personal sideloading. It is not positioned as a covert accessibility automation service or a Play Store accessibility utility.

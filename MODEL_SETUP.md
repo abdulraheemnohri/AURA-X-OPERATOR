@@ -1,26 +1,36 @@
-# AURA-X local model setup
+# Local AI model setup
 
-AURA-X is designed to keep inference local. Model weights are deliberately not committed to Git.
+AURA-X Operator is designed to keep inference on-device. Model files are imported into app-private storage and are never uploaded by the application.
 
-## Text model
+## Primary model
 
-Recommended baseline: `Qwen/Qwen2.5-0.5B-Instruct-GGUF` from Hugging Face.
+- Hugging Face repository: `Qwen/Qwen2.5-0.5B-Instruct-GGUF`
+- Recommended quantization: `Q4_K_M`
+- Expected filename: `qwen2.5-0.5b-instruct-q4_k_m.gguf`
+- Import path: **Settings → Import GGUF model**
 
-- Hub: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF
-- License: Apache-2.0
-- Use a Q4_K_M GGUF variant sized for the device.
-- Place the selected `.gguf` under the app's private model storage and expose it through the native llama.cpp bridge.
+The official Qwen model card documents GGUF variants and llama.cpp usage. Do not commit the model weights to Git; they are hundreds of MB and are user data once installed.
 
-The Java/Kotlin runtime intentionally reports `isReady() == false` until the native library is loaded. The JNI sample is a compile-safe bridge, not a fake inference engine.
+## Native runtime
 
-## STT
+The Android build fetches pinned llama.cpp release `b10087` through CMake FetchContent and links the CPU backend into `aurax_native`.
 
-Use whisper.cpp for local speech recognition. Keep model files outside Git and load them from app-private storage.
+The JNI layer:
 
-## TTS
+1. Opens the imported GGUF from app-private storage.
+2. Creates a 2048-token context.
+3. Applies a conservative sampler.
+4. Generates locally.
+5. Never sends the prompt or generated text to a network service.
 
-Piper voices can be sourced from `rhasspy/piper-voices`. Choose and redistribute a voice only when its license permits your intended distribution.
+## Vision
 
-## Privacy
+Vision is deliberately optional. The default operator uses AccessibilityNodeInfo text and metadata. A future Qwen-VL backend can consume screenshots only after the same sensitive/private-screen gate.
 
-Do not upload screenshots, accessibility trees, voice recordings, prompts, or operator logs to a remote inference endpoint.
+## Voice
+
+Whisper and Piper are represented as local runtime interfaces. Native model binaries/weights are not checked into Git. They must be pinned and imported into app-private storage before enabling voice automation in a release build.
+
+## Model provenance
+
+The primary model is Apache-2.0 according to the official Hugging Face model card. Review the model's current license and terms before redistribution.

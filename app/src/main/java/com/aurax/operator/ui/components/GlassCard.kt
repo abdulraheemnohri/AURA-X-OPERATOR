@@ -1,11 +1,33 @@
 package com.aurax.operator.ui.components
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-@Composable fun GlassCard(modifier:Modifier=Modifier,content:@Composable()->Unit){Box(modifier.background(Color.White.copy(alpha=.06f),RoundedCornerShape(20.dp)).border(1.dp,Color.White.copy(alpha=.1f),RoundedCornerShape(20.dp)).padding(16.dp)){content()}}
+
+@Composable
+fun GlassCard(
+    modifier: Modifier = Modifier,
+    emphasized: Boolean = false,
+    content: @Composable () -> Unit
+) {
+    val shape = RoundedCornerShape(22.dp)
+    Box(
+        modifier
+            .shadow(if (emphasized) 18.dp else 8.dp, shape, clip = false)
+            .background(
+                if (emphasized) MaterialTheme.colorScheme.primary.copy(alpha = 0.09f)
+                else Color.White.copy(alpha = 0.055f),
+                shape
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.10f), shape)
+            .padding(18.dp)
+    ) { content() }
+}

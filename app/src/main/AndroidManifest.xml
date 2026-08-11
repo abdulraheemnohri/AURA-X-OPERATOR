@@ -1,21 +1,56 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Only permissions required by the user-visible, sideloaded operator. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <application android:name=".app.AuraApplication" android:theme="@style/Theme.AuraX" android:label="AURA-X Operator" android:allowBackup="false" android:supportsRtl="true">
-        <activity android:name=".app.MainActivity" android:exported="true">
-            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application
+        android:name=".app.AuraApplication"
+        android:theme="@style/Theme.AuraX"
+        android:label="AURA-X Operator"
+        android:icon="@drawable/ic_aura_logo"
+        android:roundIcon="@drawable/ic_aura_logo"
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="false">
+        <activity
+            android:name=".app.MainActivity"
+            android:exported="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
         </activity>
-        <service android:name=".operator.AuraAccessibilityService" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:exported="true">
-            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService"/></intent-filter>
-            <meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibility_service_config"/>
+
+        <service
+            android:name=".operator.AuraAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
         </service>
-        <service android:name=".operator.overlay.OperatorOverlayService" android:exported="false" android:foregroundServiceType="specialUse">
-            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Visible user-controlled operator status indicator" />
+
+        <service
+            android:name=".operator.overlay.OperatorOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Visible user-controlled operator status indicator" />
         </service>
-        <receiver android:name=".operator.AbortReceiver" android:exported="false" />
+
+        <receiver
+            android:name=".operator.AbortReceiver"
+            android:exported="false" />
     </application>
 </manifest>
