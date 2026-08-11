@@ -1,0 +1,2 @@
+package com.aurax.operator.core.common
+sealed interface ToolResult { data class Success(val message:String):ToolResult; data class Failure(val message:String):ToolResult; data class Blocked(val reason:String):ToolResult }

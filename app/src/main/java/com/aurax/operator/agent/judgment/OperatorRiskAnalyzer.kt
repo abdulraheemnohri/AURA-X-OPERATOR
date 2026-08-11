@@ -1,0 +1,4 @@
+package com.aurax.operator.agent.judgment
+enum class AutomationPolicy{OBSERVE_ONLY,SUGGEST_ONLY,CONFIRM_ACTIONS,FULL_AUTO_LOW_RISK}
+data class RiskDecision(val allowed:Boolean,val requiresConfirmation:Boolean,val reason:String)
+class OperatorRiskAnalyzer{fun assess(policy:AutomationPolicy,action:String,blocked:Boolean):RiskDecision{if(blocked)return RiskDecision(false,false,"Blocked by safety policy");if(policy==AutomationPolicy.OBSERVE_ONLY)return RiskDecision(false,false,"Observe-only policy");val risky=listOf("delete","purchase","pay","transfer","send","subscribe").any{action.contains(it,true)};return RiskDecision(true,policy!=AutomationPolicy.FULL_AUTO_LOW_RISK||risky,"Policy decision")}}

@@ -1,0 +1,3 @@
+package com.aurax.operator.agent.planner
+data class PlanStep(val id:String,val description:String,val tool:String,val args:Map<String,String>=emptyMap())
+class OperatorPlanner{fun plan(input:String):List<PlanStep>{val q=input.trim();return when{q.startsWith("open chrome",true)&&q.contains("search",true)->listOf(PlanStep("1","Open Chrome and search","chrome_automation",mapOf("query" to q.substringAfter("search","").trim())));q.startsWith("search youtube",true)->listOf(PlanStep("1","Search YouTube","youtube_automation",mapOf("query" to q.substringAfter("search youtube","").trim())));else->listOf(PlanStep("1","Explain or request a supported command","none"))}}}
