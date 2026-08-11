@@ -62,7 +62,6 @@ class AccessibilityOperator(private val service: AuraAccessibilityService) {
             return false
         }
 
-        // Countdown creates a deliberate race boundary. Revalidate the live screen before acting.
         OperatorRuntime.ensureNotAborted()
         val currentRoot = root()
         if (currentRoot == null || AccessibilityGuardrails.isBlockedPackage(currentRoot.packageName?.toString())) {
@@ -107,7 +106,6 @@ class AccessibilityOperator(private val service: AuraAccessibilityService) {
             AccessibilityNodeInfo.ACTION_SET_TEXT,
             Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) }
         )
-        // Never persist the actual typed value.
         OperatorAudit.action(node.packageName?.toString(), "Type text", "[REDACTED]", ok)
         return ok
     }
@@ -126,8 +124,7 @@ class AccessibilityOperator(private val service: AuraAccessibilityService) {
     private fun isActionable(node: AccessibilityNodeInfo): Boolean =
         !isBlocked(node) && node.isVisibleToUser && node.isEnabled && (node.isClickable || node.isFocusable)
 
-    private fun isBlocked(node: AccessibilityNodeInfo): Boolean =
-        AccessibilityGuardrails.isSensitiveNode(node)
+    fun isBlocked(node: AccessibilityNodeInfo): Boolean = AccessibilityGuardrails.isSensitiveNode(node)
 
     private fun safeLabel(node: AccessibilityNodeInfo): String =
         node.contentDescription?.toString()?.take(120)
