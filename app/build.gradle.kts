@@ -17,12 +17,9 @@ android {
         versionName = "3.0.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
+        ndk.abiFilters.add("arm64-v8a")
     }
 
-    // llama.cpp/ggml's current ARM32 NEON half-precision path does not compile
-    // reliably with the Android NDK used by CI. The native runtime is therefore
-    // packaged only for 64-bit ARM. Android 9+ devices with arm64-v8a are the
-    // supported native-runtime target for this sideloaded build.
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
