@@ -97,7 +97,10 @@ Java_com_aurax_operator_ai_runtime_LlamaCppRuntime_nativeGenerate(
         char piece[512];
         const int n = llama_token_to_piece(vocab, token, piece, sizeof(piece), 0, true);
         if (n > 0) output.append(piece, n);
-        batch = llama_batch_get_one(&token, 1);
+        
+        // Create a const vector to pass to llama_batch_get_one
+        const std::vector<llama_token> token_vec = {token};
+        batch = llama_batch_get_one(token_vec.data(), 1);
     }
 
     llama_sampler_free(sampler);
