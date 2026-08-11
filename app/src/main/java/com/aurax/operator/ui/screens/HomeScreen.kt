@@ -75,7 +75,7 @@ fun HomeScreen(onChat: () -> Unit = {}) {
 private fun MetricCard(modifier: Modifier, label: String, value: String) {
     GlassCard(modifier) {
         Column {
-            Text(label, fontSize = 10.sp, color = AuraColors.TextMuted)
+            Text(label, fontSize = 10.sp, color = AuraColors.TextSecondary)
             Spacer(Modifier.size(4.dp))
             Text(value, style = MaterialTheme.typography.titleMedium)
         }
