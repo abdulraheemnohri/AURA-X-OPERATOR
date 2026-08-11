@@ -13,15 +13,20 @@ android {
         applicationId = "com.aurax.operator"
         minSdk = 28
         targetSdk = 34
-        versionCode = 6
-        versionName = "3.0.3"
+        versionCode = 7
+        versionName = "3.0.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
-
-        // Keep llama.cpp/ggml on the ABI that is supported by the native runtime.
-        // Direct property access avoids Kotlin DSL accessor-resolution issues seen
-        // with the nested ndk { } block on CI.
         ndk.abiFilters.add("arm64-v8a")
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
     }
 
     externalNativeBuild {
