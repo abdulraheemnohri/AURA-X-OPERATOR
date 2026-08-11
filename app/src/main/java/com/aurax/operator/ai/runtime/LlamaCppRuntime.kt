@@ -1,4 +1,27 @@
 package com.aurax.operator.ai.runtime
+
+import android.content.Context
 import com.aurax.operator.ai.inference.GenerationRequest
 import com.aurax.operator.ai.model.AIModelRuntime
-class LlamaCppRuntime:AIModelRuntime{companion object{private var loaded=false;init{loaded=runCatching{System.loadLibrary("aurax_native");true}.getOrDefault(false)}};private external fun nativeGenerate(prompt:String):String;override suspend fun generate(request:GenerationRequest):String{check(loaded){"Native AI runtime is not packaged. Add the pinned llama.cpp backend and GGUF model."};return nativeGenerate(request.prompt)};override fun isReady()=loaded}
+import com.aurax.operator.ai.model.ModelRepository
+
+class LlamaCppRuntime(context: Context) : AIModelRuntime {
+    private val repository = ModelRepository(context.applicationContext)
+
+    companion object {
+        private var loaded = false
+        init { loaded = runCatching { System.loadLibrary("aurax_native"); true }.getOrDefault(false) }
+    }
+
+    private external fun nativeGenerate(modelPath: String, prompt: String, maxTokens: Int): String
+
+    override suspend fun generate(request: GenerationRequest): String {
+        check(loaded) { "Native llama.cpp library is unavailable" }
+        check(repository.isInstalled()) {
+            "Local GGUF model is not installed. Import ${ModelRepository.RECOMMENDED_FILENAME} from Hugging Face."
+        }
+        return nativeGenerate(repository.primaryModel.absolutePath, request.prompt, request.maxTokens)
+    }
+
+    override fun isReady(): Boolean = loaded && repository.isInstalled()
+}
