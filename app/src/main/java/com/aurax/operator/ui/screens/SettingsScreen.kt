@@ -15,12 +15,15 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.aurax.operator.ai.model.ModelRepository
 import com.aurax.operator.core.security.SecurePrefs
+import com.aurax.operator.data.LogExporter
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen() {
     val context = LocalContext.current
     val prefs = remember { SecurePrefs(context) }
     val models = remember { ModelRepository(context) }
+    val scope = rememberCoroutineScope()
     var policy by remember { mutableStateOf(prefs.policy) }
     var modelInstalled by remember { mutableStateOf(models.isInstalled()) }
     var message by remember { mutableStateOf("") }
@@ -32,6 +35,18 @@ fun SettingsScreen() {
                 modelInstalled = true
                 message = "Local Qwen GGUF installed."
             }.onFailure { message = "Model import failed: ${it.message}" }
+        }
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null) {
+            scope.launch {
+                runCatching {
+                    val csv = LogExporter.csv(context)
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(csv.toByteArray()) }
+                    message = "Safety log exported."
+                }.onFailure { message = "Export failed: ${it.message}" }
+            }
         }
     }
 
@@ -58,16 +73,20 @@ fun SettingsScreen() {
         }
 
         Spacer(Modifier.height(16.dp))
-        Button(onClick = {
-            context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-        }) { Text("Open Accessibility Settings") }
-
+        Button(onClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }) {
+            Text("Open Accessibility Settings")
+        }
         Spacer(Modifier.height(8.dp))
         Button(onClick = {
             context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
                 data = android.net.Uri.parse("package:${context.packageName}")
             })
         }) { Text("Allow Floating Indicator") }
+
+        Spacer(Modifier.height(8.dp))
+        Button(onClick = { exportLauncher.launch("aura-x-safety-${System.currentTimeMillis()}.csv") }) {
+            Text("Export Safety Logs")
+        }
 
         Spacer(Modifier.height(8.dp))
         Button(onClick = {
