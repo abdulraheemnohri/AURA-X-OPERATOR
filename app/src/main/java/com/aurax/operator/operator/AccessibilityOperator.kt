@@ -50,37 +50,51 @@ class AccessibilityOperator(private val service: AuraAccessibilityService) {
         val context = extract()
         if (context?.let { it.hasPasswordField || it.hasSensitiveText || it.isPrivateBrowsing } == true || isBlocked(node)) {
             OperatorRuntime.blocked()
+            OperatorAudit.safety("BLOCKED_CLICK", "Sensitive/private screen or blocked node", node.packageName?.toString(), actionLabel)
             return false
         }
-        if (!OperatorRuntime.safetyCountdown(actionLabel)) return false
-        if (node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
-        var parent = node.parent
-        while (parent != null) {
-            if (!isBlocked(parent) && parent.isClickable && parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
-            parent = parent.parent
+        if (!OperatorRuntime.safetyCountdown(actionLabel)) {
+            OperatorAudit.action(node.packageName?.toString(), actionLabel, node.text?.toString(), false)
+            return false
         }
-        return false
+        val clicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK) || run {
+            var parent = node.parent
+            var success = false
+            while (parent != null && !success) {
+                if (!isBlocked(parent) && parent.isClickable) success = parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                parent = parent.parent
+            }
+            success
+        }
+        OperatorAudit.action(node.packageName?.toString(), actionLabel, node.text?.toString(), clicked)
+        return clicked
     }
 
     suspend fun safeType(node: AccessibilityNodeInfo, text: String): Boolean {
         OperatorRuntime.ensureNotAborted()
-        if (isBlocked(node) || !node.isEditable) return false
+        if (isBlocked(node) || !node.isEditable) {
+            OperatorAudit.safety("BLOCKED_TYPE", "Non-editable or password control", node.packageName?.toString(), "Type")
+            return false
+        }
         if ((node.inputType and InputType.TYPE_TEXT_VARIATION_PASSWORD) != 0) {
             OperatorRuntime.blocked()
+            OperatorAudit.safety("BLOCKED_TYPE", "Password field", node.packageName?.toString(), "Type")
             return false
         }
         val context = extract()
         if (context?.let { it.hasSensitiveText || it.isPrivateBrowsing } == true) {
             OperatorRuntime.blocked()
+            OperatorAudit.safety("BLOCKED_TYPE", "Sensitive/private screen", node.packageName?.toString(), "Type")
             return false
         }
         OperatorRuntime.acting()
-        return node.performAction(
+        val ok = node.performAction(
             AccessibilityNodeInfo.ACTION_SET_TEXT,
-            Bundle().apply {
-                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
-            }
+            Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) }
         )
+        // Deliberately never log the typed value.
+        OperatorAudit.action(node.packageName?.toString(), "Type text", "[REDACTED]", ok)
+        return ok
     }
 
     fun isBlocked(node: AccessibilityNodeInfo): Boolean {
