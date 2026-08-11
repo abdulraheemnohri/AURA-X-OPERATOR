@@ -1,6 +1,5 @@
 package com.aurax.operator.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -52,31 +51,29 @@ fun HomeScreen(onChat: () -> Unit = {}) {
         Text("Quick actions", style = MaterialTheme.typography.titleLarge)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(listOf("Open Chrome", "Search YouTube", "Inspect screen", "Read status")) { action ->
-                OutlinedButton(onClick = {}, colors = ButtonDefaults.outlinedButtonColors(contentColor = AuraColors.TextPrimary)) {
-                    Text(action)
-                }
+                OutlinedButton(onClick = {}, colors = ButtonDefaults.outlinedButtonColors(contentColor = AuraColors.TextPrimary)) { Text(action) }
             }
         }
 
         Text("Safety posture", style = MaterialTheme.typography.titleLarge)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetricCard("POLICY", "CONFIRM")
-            MetricCard("LOCAL", "100%")
-            MetricCard("ABORT", "READY")
+            MetricCard(Modifier.weight(1f), "POLICY", "CONFIRM")
+            MetricCard(Modifier.weight(1f), "LOCAL", "100%")
+            MetricCard(Modifier.weight(1f), "ABORT", "READY")
         }
 
         GlassCard(Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Before first run", style = MaterialTheme.typography.titleMedium)
-                Text("Enable AccessibilityService and the floating indicator in Android Settings. AURA-X will visibly signal every automation state.", color = AuraColors.TextSecondary)
+                Text("Enable AccessibilityService and the floating indicator in Android Settings. AURA-X visibly signals every automation state.", color = AuraColors.TextSecondary)
             }
         }
     }
 }
 
 @Composable
-private fun MetricCard(label: String, value: String) {
-    GlassCard(Modifier.weight(1f)) {
+private fun MetricCard(modifier: Modifier, label: String, value: String) {
+    GlassCard(modifier) {
         Column {
             Text(label, fontSize = 10.sp, color = AuraColors.TextMuted)
             Spacer(Modifier.size(4.dp))
