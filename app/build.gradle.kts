@@ -13,6 +13,7 @@ android {
         targetSdk = 34
         versionCode = 2
         versionName = "2.0.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.8" }
@@ -39,4 +40,5 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.core:core-ktx:1.12.0")
+    testImplementation("junit:junit:4.13.2")
 }
