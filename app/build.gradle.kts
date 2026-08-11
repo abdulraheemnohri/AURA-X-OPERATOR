@@ -7,6 +7,8 @@ plugins {
 android {
     namespace = "com.aurax.operator"
     compileSdk = 34
+    ndkVersion = "25.2.9519653"
+
     defaultConfig {
         applicationId = "com.aurax.operator"
         minSdk = 28
@@ -15,22 +17,36 @@ android {
         versionName = "3.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
+
+        // llama.cpp/ggml currently fails to compile its 32-bit ARM NEON
+        // half-precision path with this Android NDK. Ship the supported
+        // 64-bit ARM ABI only until a compatible upstream backend is used.
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
     }
 
-    // llama.cpp's current CPU backend does not build cleanly for 32-bit ARM
-    // with the Android NDK used by this project (armeabi-v7a fails in
-    // ggml-cpu/llamafile/sgemm.cpp because the half-precision NEON intrinsics
-    // are unavailable). Modern supported devices are overwhelmingly arm64.
-    // Keep the native ABI deterministic and production-oriented.
-    ndk {
-        abiFilters += listOf("arm64-v8a")
+    buildFeatures {
+        compose = true
+        buildConfig = true
     }
 
-    buildFeatures { compose = true; buildConfig = true }
-    composeOptions { kotlinCompilerExtensionVersion = "1.5.8" }
-    packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
-    externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt"); version = "3.22.1" } }
-    ndkVersion = "25.2.9519653"
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.8"
+    }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
 }
 
 dependencies {
