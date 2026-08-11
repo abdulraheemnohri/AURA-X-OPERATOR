@@ -45,10 +45,10 @@ class AccessibilityOperator(private val service: AuraAccessibilityService) {
 
     fun extract(): ScreenContext? = root()?.let(ScreenContextExtractor::extract)
 
-    suspend fun safeClick(node: AccessibilityNodeInfo, actionLabel: String = "Click") : Boolean {
+    suspend fun safeClick(node: AccessibilityNodeInfo, actionLabel: String = "Click"): Boolean {
         OperatorRuntime.ensureNotAborted()
         val context = extract()
-        if (context?.hasPasswordField == true || context.hasSensitiveText || isBlocked(node)) {
+        if (context?.let { it.hasPasswordField || it.hasSensitiveText || it.isPrivateBrowsing } == true || isBlocked(node)) {
             OperatorRuntime.blocked()
             return false
         }
@@ -69,7 +69,8 @@ class AccessibilityOperator(private val service: AuraAccessibilityService) {
             OperatorRuntime.blocked()
             return false
         }
-        if (extract()?.hasSensitiveText == true) {
+        val context = extract()
+        if (context?.let { it.hasSensitiveText || it.isPrivateBrowsing } == true) {
             OperatorRuntime.blocked()
             return false
         }
