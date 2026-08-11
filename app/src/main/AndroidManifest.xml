@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Only permissions required by the user-visible, sideloaded operator. -->
+    <!-- Explicitly requested capabilities for the local, user-controlled operator. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -8,6 +8,13 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
+    <!-- Android 11+ package visibility for the two explicitly supported third-party targets. -->
+    <queries>
+        <package android:name="com.android.chrome" />
+        <package android:name="com.google.android.youtube" />
+    </queries>
 
     <application
         android:name=".app.AuraApplication"
@@ -17,7 +24,8 @@
         android:roundIcon="@drawable/ic_aura_logo"
         android:allowBackup="false"
         android:supportsRtl="true"
-        android:usesCleartextTraffic="false">
+        android:usesCleartextTraffic="false"
+        android:enableOnBackInvokedCallback="true">
         <activity
             android:name=".app.MainActivity"
             android:exported="true"
@@ -46,7 +54,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Visible user-controlled operator status indicator" />
+                android:value="User-visible AURA-X automation status indicator and emergency abort control" />
         </service>
 
         <receiver

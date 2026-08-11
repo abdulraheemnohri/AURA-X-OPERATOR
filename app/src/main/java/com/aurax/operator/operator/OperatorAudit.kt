@@ -13,7 +13,9 @@ object OperatorAudit {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     @Volatile private var db: AuraDatabase? = null
 
-    fun init(context: Context) { db = AuraDatabase.get(context.applicationContext) }
+    fun init(context: Context) {
+        db = AuraDatabase.get(context.applicationContext)
+    }
 
     fun action(packageName: String?, action: String, target: String?, allowed: Boolean) {
         val database = db ?: return
@@ -32,6 +34,15 @@ object OperatorAudit {
 
     fun safety(type: String, reason: String, packageName: String?, action: String?) {
         val database = db ?: return
-        scope.launch { database.dao().addSafety(SafetyEventEntity(type, reason, packageName, action)) }
+        scope.launch {
+            database.dao().addSafety(
+                SafetyEventEntity(
+                    type = type,
+                    reason = reason,
+                    packageName = packageName,
+                    action = action
+                )
+            )
+        }
     }
 }

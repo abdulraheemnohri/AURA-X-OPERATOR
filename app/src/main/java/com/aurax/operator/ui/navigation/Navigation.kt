@@ -1,9 +1,9 @@
 package com.aurax.operator.ui.navigation
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -17,11 +17,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Task
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Task
+import androidx.compose.ui.text.font.FontWeight
+import com.aurax.operator.core.theme.AuraColors
 import com.aurax.operator.ui.components.OperatorIndicator
 import com.aurax.operator.ui.screens.ChatScreen
 import com.aurax.operator.ui.screens.HomeScreen
@@ -31,6 +33,7 @@ import com.aurax.operator.ui.screens.TaskScreen
 
 private data class Destination(val label: String, val icon: ImageVector)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AuraNavigation() {
     var selected by remember { mutableIntStateOf(0) }
@@ -45,12 +48,12 @@ fun AuraNavigation() {
     Scaffold(
         topBar = {
             androidx.compose.material3.TopAppBar(
-                title = { Text("AURA-X", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
+                title = { Text("AURA-X", fontWeight = FontWeight.Bold) },
                 actions = { OperatorIndicator(onAbort = {}) }
             )
         },
         bottomBar = {
-            NavigationBar(containerColor = com.aurax.operator.core.theme.AuraColors.Surface) {
+            NavigationBar(containerColor = AuraColors.Surface) {
                 destinations.forEachIndexed { index, destination ->
                     NavigationBarItem(
                         selected = selected == index,
