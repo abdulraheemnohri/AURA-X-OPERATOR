@@ -13,16 +13,21 @@ android {
         applicationId = "com.aurax.operator"
         minSdk = 28
         targetSdk = 34
-        versionCode = 4
-        versionName = "3.0.1"
+        versionCode = 6
+        versionName = "3.0.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
 
-        // llama.cpp/ggml currently fails to compile its 32-bit ARM NEON
-        // half-precision path with this Android NDK. Ship the supported
-        // 64-bit ARM ABI only until a compatible upstream backend is used.
-        ndk {
-            abiFilters += listOf("arm64-v8a")
+        // Keep llama.cpp/ggml on the ABI that is supported by the native runtime.
+        // Direct property access avoids Kotlin DSL accessor-resolution issues seen
+        // with the nested ndk { } block on CI.
+        ndk.abiFilters.add("arm64-v8a")
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
         }
     }
 
@@ -38,13 +43,6 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
-    }
-
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
         }
     }
 }
