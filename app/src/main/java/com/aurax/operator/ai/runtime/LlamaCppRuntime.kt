@@ -1,0 +1,4 @@
+package com.aurax.operator.ai.runtime
+import com.aurax.operator.ai.inference.GenerationRequest
+import com.aurax.operator.ai.model.AIModelRuntime
+class LlamaCppRuntime:AIModelRuntime{companion object{private var loaded=false;init{loaded=runCatching{System.loadLibrary("aurax_native");true}.getOrDefault(false)}};private external fun nativeGenerate(prompt:String):String;override suspend fun generate(request:GenerationRequest):String{check(loaded){"Native AI runtime is not packaged. Add the pinned llama.cpp backend and GGUF model."};return nativeGenerate(request.prompt)};override fun isReady()=loaded}

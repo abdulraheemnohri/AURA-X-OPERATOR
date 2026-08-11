@@ -1,0 +1,4 @@
+package com.aurax.operator.operator.actions
+import android.view.accessibility.AccessibilityNodeInfo
+fun scrollForward(node:AccessibilityNodeInfo)=node.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+fun scrollBackward(node:AccessibilityNodeInfo)=node.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)

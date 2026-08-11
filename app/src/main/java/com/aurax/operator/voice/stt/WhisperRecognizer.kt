@@ -1,0 +1,2 @@
+package com.aurax.operator.voice.stt
+class WhisperRecognizer{companion object{init{try{System.loadLibrary("aurax_native")}catch(_:Throwable){}}};private external fun nativeIsAvailable():Boolean;fun isAvailable()=try{nativeIsAvailable()}catch(_:Throwable){false};fun start(onText:(String)->Unit){/* Load a whisper.cpp model from app-private storage in the native implementation. */}}

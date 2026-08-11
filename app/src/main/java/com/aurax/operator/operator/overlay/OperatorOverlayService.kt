@@ -1,0 +1,11 @@
+package com.aurax.operator.operator.overlay
+import android.app.*
+import android.content.Intent
+import android.graphics.PixelFormat
+import android.os.Build
+import android.view.Gravity
+import android.view.WindowManager
+import android.widget.TextView
+import com.aurax.operator.operator.AbortReceiver
+import com.aurax.operator.operator.OperatorRuntime
+class OperatorOverlayService:Service(){private var wm:WindowManager?=null;private var view:TextView?=null;override fun onCreate(){super.onCreate();if(Build.VERSION.SDK_INT>=26)startForeground(NOTIFICATION_ID,notification());wm=getSystemService(WINDOW_SERVICE) as WindowManager;showIndicator()};private fun notification():Notification{val channelId="aura_operator";if(Build.VERSION.SDK_INT>=26)(getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(NotificationChannel(channelId,"AURA-X Operator",NotificationManager.IMPORTANCE_LOW));val abortIntent=PendingIntent.getBroadcast(this,11,Intent(this,AbortReceiver::class.java).setAction(AbortReceiver.ACTION_ABORT),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE);return Notification.Builder(this,channelId).setContentTitle("AURA-X Operator active").setContentText("Automation is visible and can be stopped immediately").setSmallIcon(android.R.drawable.ic_dialog_info).addAction(Notification.Action.Builder(null,"Stop AURA-X Operator",abortIntent).build()).setOngoing(true).build()};private fun showIndicator(){view=TextView(this).apply{text="●";textSize=28f;setTextColor(0xFF34D399.toInt());setPadding(12,4,12,4);setOnClickListener{OperatorRuntime.abort()}};val type=if(Build.VERSION.SDK_INT>=26)WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE;val params=WindowManager.LayoutParams(64,64,type,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,PixelFormat.TRANSLUCENT).apply{gravity=Gravity.TOP or Gravity.END;x=16;y=48};runCatching{wm?.addView(view,params)}};override fun onDestroy(){view?.let{runCatching{wm?.removeView(it)}};super.onDestroy()};override fun onBind(intent:Intent?)=null;companion object{const val NOTIFICATION_ID=7}}
