@@ -27,7 +27,7 @@ bool ensure_model(const std::string & path) {
     unload_model();
 
     llama_model_params params = llama_model_default_params();
-    params.n_gpu_layers = 0; // CPU-first and broadly compatible on Android.
+    params.n_gpu_layers = 0;
     g_model = llama_model_load_from_file(path.c_str(), params);
     if (!g_model) {
         LOGE("Unable to load GGUF model: %s", path.c_str());
@@ -81,7 +81,9 @@ Java_com_aurax_operator_ai_runtime_LlamaCppRuntime_nativeGenerate(
     llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.2f));
     llama_sampler_chain_add(sampler, llama_sampler_init_greedy());
 
-    llama_batch batch = llama_batch_get_one(prompt_tokens.data(), prompt_tokens.size());
+    // llama_batch_get_one requires mutable token storage in the pinned llama.cpp API.
+    std::vector<llama_token> batch_tokens = prompt_tokens;
+    llama_batch batch = llama_batch_get_one(batch_tokens.data(), static_cast<int32_t>(batch_tokens.size()));
     std::string output;
     output.reserve(static_cast<size_t>(requested) * 4);
 
@@ -97,7 +99,9 @@ Java_com_aurax_operator_ai_runtime_LlamaCppRuntime_nativeGenerate(
         char piece[512];
         const int n = llama_token_to_piece(vocab, token, piece, sizeof(piece), 0, true);
         if (n > 0) output.append(piece, n);
-        batch = llama_batch_get_one(&token, 1);
+
+        batch_tokens.assign(1, token);
+        batch = llama_batch_get_one(batch_tokens.data(), 1);
     }
 
     llama_sampler_free(sampler);
