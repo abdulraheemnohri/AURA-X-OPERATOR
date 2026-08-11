@@ -1,7 +1,8 @@
 package com.aurax.operator.ui.screens
 
+import android.Manifest
 import android.content.Intent
-import android.provider.Settings
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricPrompt
@@ -14,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.aurax.operator.ai.model.ModelRepository
+import com.aurax.operator.core.security.PermissionCenter
 import com.aurax.operator.core.security.SecurePrefs
 import com.aurax.operator.data.LogExporter
 import kotlinx.coroutines.launch
@@ -27,6 +29,11 @@ fun SettingsScreen() {
     var policy by remember { mutableStateOf(prefs.policy) }
     var modelInstalled by remember { mutableStateOf(models.isInstalled()) }
     var message by remember { mutableStateOf("") }
+    var refresh by remember { mutableIntStateOf(0) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { refresh++ }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -50,68 +57,103 @@ fun SettingsScreen() {
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
+    // Read status on recomposition after returning from system settings.
+    @Suppress("UNUSED_VARIABLE") val statusRefresh = refresh
+    val microphone = PermissionCenter.hasMicrophone(context)
+    val notifications = PermissionCenter.hasNotifications(context)
+    val overlay = PermissionCenter.hasOverlay(context)
+    val accessibility = PermissionCenter.isAccessibilityEnabled(context)
+
+    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Settings", style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(16.dp))
-        Text("Automation policy")
-        listOf("OBSERVE_ONLY", "SUGGEST_ONLY", "CONFIRM_ACTIONS", "FULL_AUTO_LOW_RISK").forEach { p ->
-            Row {
-                RadioButton(policy == p, {
-                    policy = p
-                    prefs.policy = p
-                })
-                Text(p, Modifier.padding(top = 12.dp))
+        Text("Device-local control plane", style = MaterialTheme.typography.bodyMedium)
+
+        Card {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Operator readiness", style = MaterialTheme.typography.titleMedium)
+                StatusRow("Accessibility service", accessibility)
+                StatusRow("Floating indicator", overlay)
+                StatusRow("Notifications", notifications)
+                StatusRow("Microphone", microphone)
+                Button(onClick = {
+                    val requested = buildList {
+                        add(Manifest.permission.RECORD_AUDIO)
+                        if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                    permissionLauncher.launch(requested.toTypedArray())
+                }) { Text("Request voice/notification permissions") }
+                OutlinedButton(onClick = { context.startActivity(PermissionCenter.accessibilitySettingsIntent()) }) {
+                    Text("Open Accessibility Settings")
+                }
+                OutlinedButton(onClick = { context.startActivity(PermissionCenter.overlaySettingsIntent(context)) }) {
+                    Text("Open Overlay Settings")
+                }
             }
         }
 
-        Spacer(Modifier.height(12.dp))
-        Text(if (modelInstalled) "Local Qwen model: installed" else "Local Qwen model: not installed")
-        Text("Hugging Face: ${ModelRepository.HF_REPOSITORY}", style = MaterialTheme.typography.bodySmall)
-        Spacer(Modifier.height(6.dp))
-        Button(onClick = { picker.launch(arrayOf("application/octet-stream", "application/x-gguf", "*/*")) }) {
-            Text("Import GGUF model")
-        }
-
-        Spacer(Modifier.height(16.dp))
-        Button(onClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }) {
-            Text("Open Accessibility Settings")
-        }
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = {
-            context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
-                data = android.net.Uri.parse("package:${context.packageName}")
-            })
-        }) { Text("Allow Floating Indicator") }
-
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = { exportLauncher.launch("aura-x-safety-${System.currentTimeMillis()}.csv") }) {
-            Text("Export Safety Logs")
-        }
-
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = {
-            val activity = context as? FragmentActivity ?: return@Button
-            val executor = ContextCompat.getMainExecutor(activity)
-            val prompt = BiometricPrompt(activity, executor, object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    message = "Operator mode unlocked for this session."
+        Card {
+            Column(Modifier.padding(16.dp)) {
+                Text("Automation policy", style = MaterialTheme.typography.titleMedium)
+                listOf("OBSERVE_ONLY", "SUGGEST_ONLY", "CONFIRM_ACTIONS", "FULL_AUTO_LOW_RISK").forEach { p ->
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        RadioButton(policy == p, {
+                            policy = p
+                            prefs.policy = p
+                        })
+                        Text(p)
+                    }
                 }
-                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                    message = "Operator unlock cancelled."
-                }
-            })
-            prompt.authenticate(
-                BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Unlock AURA-X Operator")
-                    .setSubtitle("Confirm before enabling deep device automation")
-                    .setNegativeButtonText("Cancel")
-                    .build()
-            )
-        }) { Text("Biometric Operator Unlock") }
-
-        if (message.isNotBlank()) {
-            Spacer(Modifier.height(12.dp))
-            Text(message, style = MaterialTheme.typography.bodySmall)
+            }
         }
+
+        Card {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Local AI", style = MaterialTheme.typography.titleMedium)
+                Text(if (modelInstalled) "Qwen GGUF: installed" else "Qwen GGUF: not installed")
+                Text("Hugging Face: ${ModelRepository.HF_REPOSITORY}", style = MaterialTheme.typography.bodySmall)
+                Button(onClick = { picker.launch(arrayOf("application/octet-stream", "application/x-gguf", "*/*")) }) {
+                    Text("Import GGUF model")
+                }
+            }
+        }
+
+        Card {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Privacy & recovery", style = MaterialTheme.typography.titleMedium)
+                Text("Operator actions remain local. Typed values are never written to the audit log.", style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(onClick = { exportLauncher.launch("aura-x-safety-${System.currentTimeMillis()}.csv") }) {
+                    Text("Export Safety Logs")
+                }
+                Button(onClick = {
+                    val activity = context as? FragmentActivity ?: return@Button
+                    val executor = ContextCompat.getMainExecutor(activity)
+                    val prompt = BiometricPrompt(activity, executor, object : BiometricPrompt.AuthenticationCallback() {
+                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                            message = "Operator session unlocked."
+                        }
+                        override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                            message = "Operator unlock cancelled."
+                        }
+                    })
+                    prompt.authenticate(
+                        BiometricPrompt.PromptInfo.Builder()
+                            .setTitle("Unlock AURA-X Operator")
+                            .setSubtitle("Confirm before enabling deep device automation")
+                            .setNegativeButtonText("Cancel")
+                            .build()
+                    )
+                }) { Text("Biometric Operator Unlock") }
+            }
+        }
+
+        if (message.isNotBlank()) Text(message, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+private fun StatusRow(label: String, ready: Boolean) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label)
+        Text(if (ready) "READY" else "NEEDS ACTION")
     }
 }
