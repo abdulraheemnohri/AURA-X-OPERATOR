@@ -18,17 +18,26 @@ data class OperatorSettings(
 
 object AutomationPolicyEngine {
     private val destructiveWords = setOf("delete", "purchase", "buy", "subscribe", "pay", "transfer", "send", "install", "uninstall", "reset")
+    private val mediumWords = setOf("click", "type", "scroll", "open", "navigate", "search", "play", "pause", "volume", "back", "forward")
 
     fun classify(label: String?, packageName: String?, blocked: Boolean): ActionRisk {
         if (blocked) return ActionRisk.BLOCKED
         val value = label.orEmpty().lowercase()
         if (destructiveWords.any(value::contains)) return ActionRisk.HIGH
         if (packageName.orEmpty() in AccessibilityGuardrails.BLOCKED_PACKAGES) return ActionRisk.BLOCKED
+        if (mediumWords.any(value::contains)) return ActionRisk.MEDIUM
         return ActionRisk.LOW
     }
 
     fun canExecute(policy: AutomationPolicy, risk: ActionRisk): Boolean = when (policy) {
         AutomationPolicy.OBSERVE_ONLY, AutomationPolicy.SUGGEST_ONLY -> false
-        AutomationPolicy.CONFIRM_ACTIONS, AutomationPolicy.FULL_AUTO_LOW_RISK -> risk == ActionRisk.LOW
+        AutomationPolicy.CONFIRM_ACTIONS -> risk == ActionRisk.LOW || risk == ActionRisk.MEDIUM
+        AutomationPolicy.FULL_AUTO_LOW_RISK -> risk == ActionRisk.LOW
+    }
+
+    fun requiresConfirmation(policy: AutomationPolicy, risk: ActionRisk): Boolean = when (policy) {
+        AutomationPolicy.OBSERVE_ONLY, AutomationPolicy.SUGGEST_ONLY -> false
+        AutomationPolicy.CONFIRM_ACTIONS -> risk == ActionRisk.MEDIUM
+        AutomationPolicy.FULL_AUTO_LOW_RISK -> false
     }
 }
