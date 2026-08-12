@@ -88,7 +88,7 @@ class TaskExecutor(private val context: Context) {
                     AppState.setPhase(OperatorPhase.CONFIRMING, "Confirm: ${step.description}")
                     audit("CONFIRMATION_REQUIRED", risk.name, step.description)
                     pendingActions.set(PendingActionStore.PendingAction(taskId, step.description, step.tool))
-                    OperatorSafety.beginConfirmation(3)
+                    OperatorSafety.beginConfirmation(policyRuntime.confirmationSeconds())
                     val approved = withTimeoutOrNull(policyRuntime.maxTaskSeconds() * 1_000L) {
                         while (AppState.operator.value.phase == OperatorPhase.CONFIRMING && !AppState.operator.value.abortRequested) {
                             delay(100)
