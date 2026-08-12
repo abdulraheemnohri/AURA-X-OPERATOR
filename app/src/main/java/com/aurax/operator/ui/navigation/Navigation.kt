@@ -8,6 +8,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.text.font.FontWeight
 import com.aurax.operator.core.security.SafetyController
@@ -22,7 +24,7 @@ fun AuraNavigation() {
     var selected by remember { mutableIntStateOf(0) }
     val destinations = listOf(
         Destination("Home", Icons.Default.Home),
-        Destination("Chat", Icons.Default.Chat),
+        Destination("Chat", Icons.AutoMirrored.Filled.Chat),
         Destination("Operator", Icons.Default.Security),
         Destination("Tasks", Icons.Default.Task),
         Destination("Settings", Icons.Default.Settings)
@@ -78,7 +80,7 @@ fun UtilityNavigation(onBack: () -> Unit, screen: @Composable () -> Unit) {
                 title = { Text("AURA-X") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
