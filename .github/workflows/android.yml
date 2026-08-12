@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: ["main", "agent/**"]
+    branches: ["main", "agent/**", "fix/**"]
   pull_request:
     branches: ["main"]
 
@@ -41,10 +41,9 @@ jobs:
       - name: Run unit tests
         if: ${{ success() }}
         run: gradle --no-daemon --stacktrace testDebugUnitTest
-      # Keep the APK available in GitHub Actions even when tests fail.
       - name: Upload Android 13+ debug APK
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v5
         with:
           name: aura-x-operator-android13-debug
           path: app/build/outputs/apk/debug/*.apk
