@@ -12,9 +12,5 @@ class PolicyRuntime(context: Context) {
 
     fun canExecute(risk: ActionRisk): Boolean = AutomationPolicyEngine.canExecute(current(), risk)
 
-    fun shouldConfirm(risk: ActionRisk): Boolean = when (current()) {
-        AutomationPolicy.OBSERVE_ONLY, AutomationPolicy.SUGGEST_ONLY -> false
-        AutomationPolicy.CONFIRM_ACTIONS -> risk != ActionRisk.LOW
-        AutomationPolicy.FULL_AUTO_LOW_RISK -> risk != ActionRisk.LOW
-    }
+    fun shouldConfirm(risk: ActionRisk): Boolean = AutomationPolicyEngine.requiresConfirmation(current(), risk)
 }
