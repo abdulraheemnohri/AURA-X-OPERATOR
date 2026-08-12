@@ -43,7 +43,9 @@ Java_com_aurax_operator_ai_runtime_LlamaCppRuntime_nativeGenerate(
         JNIEnv * env, jobject,
         jstring modelPath,
         jstring prompt,
-        jint maxTokens) {
+        jint maxTokens,
+        jfloat temperature,
+        jint contextTokens) {
     const char * model_chars = env->GetStringUTFChars(modelPath, nullptr);
     const char * prompt_chars = env->GetStringUTFChars(prompt, nullptr);
     std::string model_path(model_chars ? model_chars : "");
@@ -60,14 +62,19 @@ Java_com_aurax_operator_ai_runtime_LlamaCppRuntime_nativeGenerate(
     const int n_prompt = -llama_tokenize(vocab, input.c_str(), input.size(), nullptr, 0, true, true);
     if (n_prompt <= 0) return env->NewStringUTF("AURA-X: prompt tokenization failed.");
 
+    const int requested = std::clamp(static_cast<int>(maxTokens), 32, 2048);
+    const int requested_context = std::clamp(static_cast<int>(contextTokens), 256, 4096);
+    if (n_prompt >= requested_context) {
+        return env->NewStringUTF("AURA-X: prompt exceeds the configured context window.");
+    }
+
     std::vector<llama_token> prompt_tokens(n_prompt);
     if (llama_tokenize(vocab, input.c_str(), input.size(), prompt_tokens.data(), prompt_tokens.size(), true, true) < 0) {
         return env->NewStringUTF("AURA-X: prompt tokenization failed.");
     }
 
     llama_context_params ctx_params = llama_context_default_params();
-    const int requested = std::max(32, static_cast<int>(maxTokens));
-    ctx_params.n_ctx = std::min<uint32_t>(2048, static_cast<uint32_t>(n_prompt + requested + 8));
+    ctx_params.n_ctx = static_cast<uint32_t>(std::min(requested_context, n_prompt + requested + 8));
     ctx_params.n_batch = std::min<uint32_t>(512, ctx_params.n_ctx);
     ctx_params.n_threads = 4;
     ctx_params.n_threads_batch = 4;
@@ -78,10 +85,14 @@ Java_com_aurax_operator_ai_runtime_LlamaCppRuntime_nativeGenerate(
     llama_sampler_chain_params sampler_params = llama_sampler_chain_default_params();
     llama_sampler * sampler = llama_sampler_chain_init(sampler_params);
     llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
-    llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.2f));
-    llama_sampler_chain_add(sampler, llama_sampler_init_greedy());
 
-    // llama_batch_get_one requires mutable token storage in the pinned llama.cpp API.
+    const float safe_temperature = std::clamp(static_cast<float>(temperature), 0.0f, 1.5f);
+    if (safe_temperature <= 0.001f) {
+        llama_sampler_chain_add(sampler, llama_sampler_init_greedy());
+    } else {
+        llama_sampler_chain_add(sampler, llama_sampler_init_temp(safe_temperature));
+    }
+
     std::vector<llama_token> batch_tokens = prompt_tokens;
     llama_batch batch = llama_batch_get_one(batch_tokens.data(), static_cast<int32_t>(batch_tokens.size()));
     std::string output;
