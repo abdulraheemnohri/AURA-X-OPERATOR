@@ -3,6 +3,7 @@ package com.aurax.operator.data.database
 import android.content.Context
 import androidx.room.*
 import com.aurax.operator.data.entities.*
+import kotlinx.coroutines.flow.Flow
 
 @Database(
     entities = [
@@ -42,8 +43,14 @@ interface AuraDao {
     @Query("SELECT * FROM tasks ORDER BY createdAt DESC")
     suspend fun tasks(): List<TaskEntity>
 
+    @Query("SELECT * FROM tasks ORDER BY createdAt DESC")
+    fun observeTasks(): Flow<List<TaskEntity>>
+
     @Query("SELECT * FROM safety_events ORDER BY timestamp DESC")
     suspend fun safetyEvents(): List<SafetyEventEntity>
+
+    @Query("SELECT * FROM safety_events ORDER BY timestamp DESC")
+    fun observeSafetyEvents(): Flow<List<SafetyEventEntity>>
 
     @Query("SELECT * FROM memories ORDER BY timestamp DESC")
     suspend fun memories(): List<MemoryEntity>
