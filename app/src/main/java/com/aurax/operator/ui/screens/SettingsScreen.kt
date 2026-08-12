@@ -1,7 +1,6 @@
 package com.aurax.operator.ui.screens
 
 import android.Manifest
-import android.content.Intent
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -46,6 +45,8 @@ fun SettingsScreen() {
     var haptics by remember { mutableStateOf(prefs.hapticFeedbackEnabled) }
     var voiceInterrupt by remember { mutableStateOf(prefs.voiceAutoInterruptEnabled) }
     var countdown by remember { mutableIntStateOf(prefs.confirmationSeconds) }
+    var maxActions by remember { mutableIntStateOf(prefs.maxActionsPerTask) }
+    var maxTaskSeconds by remember { mutableIntStateOf(prefs.maxTaskSeconds) }
     var temperature by remember { mutableFloatStateOf(prefs.modelTemperature) }
     var maxTokens by remember { mutableIntStateOf(prefs.modelMaxTokens) }
     var contextTokens by remember { mutableIntStateOf(prefs.modelContextTokens) }
@@ -152,7 +153,11 @@ fun SettingsScreen() {
                 SettingSwitch("Voice auto-interrupt", "Stop speech output when the user starts speaking.", voiceInterrupt) { voiceInterrupt = it; prefs.voiceAutoInterruptEnabled = it }
                 Text("Confirmation countdown: ${countdown}s", style = MaterialTheme.typography.titleSmall)
                 Slider(value = countdown.toFloat(), onValueChange = { countdown = it.toInt().coerceIn(1, 10); prefs.confirmationSeconds = countdown }, valueRange = 1f..10f, steps = 8)
-                Text("Medium/high-risk actions must remain visible and abortable.", style = MaterialTheme.typography.bodySmall)
+                Text("Maximum actions per task: $maxActions", style = MaterialTheme.typography.titleSmall)
+                Slider(value = maxActions.toFloat(), onValueChange = { maxActions = (it.toInt() / 5 * 5).coerceIn(1, 200); prefs.maxActionsPerTask = maxActions }, valueRange = 5f..200f, steps = 38)
+                Text("Maximum task runtime: ${maxTaskSeconds}s", style = MaterialTheme.typography.titleSmall)
+                Slider(value = maxTaskSeconds.toFloat(), onValueChange = { maxTaskSeconds = (it.toInt() / 5 * 5).coerceIn(5, 900); prefs.maxTaskSeconds = maxTaskSeconds }, valueRange = 5f..900f, steps = 35)
+                Text("Medium/high-risk actions must remain visible and abortable. Runtime limits stop runaway plans even if a tool misbehaves.", style = MaterialTheme.typography.bodySmall)
             }
         }
 
