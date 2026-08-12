@@ -6,10 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * In-memory notification view used by the operator. Notification text is never
- * persisted by this component; callers decide whether an action should be audited.
- */
+/** In-memory notification view. Notification contents are not persisted here. */
 data class NotificationSnapshot(
     val key: String,
     val packageName: String,
@@ -22,21 +19,23 @@ object NotificationSnapshotStore {
     private val _notifications = MutableStateFlow<List<NotificationSnapshot>>(emptyList())
     val notifications: StateFlow<List<NotificationSnapshot>> = _notifications.asStateFlow()
 
+    private fun snapshot(sbn: StatusBarNotification): NotificationSnapshot {
+        val extras = sbn.notification.extras
+        return NotificationSnapshot(
+            key = sbn.key,
+            packageName = sbn.packageName,
+            title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty(),
+            text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty(),
+            timestamp = sbn.postTime
+        )
+    }
+
     @Synchronized
     fun replace(items: List<StatusBarNotification>) {
         _notifications.value = items
             .asSequence()
             .filterNot { AccessibilityGuardrails.isBlockedPackage(it.packageName) }
-            .map { sbn ->
-                val extras = sbn.notification.extras
-                NotificationSnapshot(
-                    key = sbn.key,
-                    packageName = sbn.packageName,
-                    title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty(),
-                    text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty(),
-                    timestamp = sbn.postTime
-                )
-            }
+            .map(::snapshot)
             .sortedByDescending { it.timestamp }
             .take(100)
             .toList()
@@ -44,8 +43,9 @@ object NotificationSnapshotStore {
 
     @Synchronized
     fun upsert(sbn: StatusBarNotification) {
-        val current = _notifications.value.filterNot { it.key == sbn.key }
-        replace(current.toStatusBarNotificationsFallback())
+        if (AccessibilityGuardrails.isBlockedPackage(sbn.packageName)) return
+        val next = _notifications.value.filterNot { it.key == sbn.key } + snapshot(sbn)
+        _notifications.value = next.sortedByDescending { it.timestamp }.take(100)
     }
 
     @Synchronized
@@ -56,6 +56,4 @@ object NotificationSnapshotStore {
     fun clear() {
         _notifications.value = emptyList()
     }
-
-    private fun List<NotificationSnapshot>.toStatusBarNotificationsFallback(): List<StatusBarNotification> = emptyList()
 }
