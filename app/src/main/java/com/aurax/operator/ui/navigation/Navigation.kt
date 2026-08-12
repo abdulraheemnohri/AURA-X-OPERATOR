@@ -11,7 +11,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.aurax.operator.core.security.SafetyController
 import com.aurax.operator.core.theme.AuraColors
 import com.aurax.operator.ui.components.OperatorIndicator
@@ -31,36 +33,40 @@ fun AuraNavigation() {
     )
 
     Scaffold(
+        containerColor = AuraColors.Background,
         topBar = {
             TopAppBar(
-                title = { Text("AURA-X", fontWeight = FontWeight.Bold) },
+                title = {
+                    Column {
+                        Text("AURA-X", fontWeight = FontWeight.Bold)
+                        Text("Operator cockpit", style = MaterialTheme.typography.labelSmall, color = AuraColors.TextSecondary)
+                    }
+                },
                 actions = {
-                    OperatorIndicator(
-                        onAbort = {
-                            SafetyController.requestAbort("Floating indicator stop")
-                        }
-                    )
-                }
+                    OperatorIndicator(onAbort = { SafetyController.requestAbort("Floating indicator stop") })
+                    Spacer(Modifier.width(8.dp))
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = AuraColors.Background)
             )
         },
         bottomBar = {
-            NavigationBar(containerColor = AuraColors.Surface) {
+            NavigationBar(
+                containerColor = AuraColors.Surface,
+                tonalElevation = 8.dp
+            ) {
                 destinations.forEachIndexed { index, destination ->
                     NavigationBarItem(
                         selected = selected == index,
                         onClick = { selected = index },
                         icon = { Icon(destination.icon, contentDescription = destination.label) },
-                        label = { Text(destination.label) }
+                        label = { Text(destination.label) },
+                        alwaysShowLabel = false
                     )
                 }
             }
         }
     ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
+        Box(Modifier.fillMaxSize().padding(padding)) {
             when (selected) {
                 0 -> HomeScreen { selected = 1 }
                 1 -> ChatScreen()
@@ -86,12 +92,6 @@ fun UtilityNavigation(onBack: () -> Unit, screen: @Composable () -> Unit) {
             )
         }
     ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            screen()
-        }
+        Box(Modifier.fillMaxSize().padding(padding)) { screen() }
     }
 }
