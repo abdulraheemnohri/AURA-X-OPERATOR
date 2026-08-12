@@ -23,21 +23,16 @@ class OperatorOverlayService : Service() {
         if (Build.VERSION.SDK_INT >= 26) startForeground(NOTIFICATION_ID, notification())
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         showIndicator()
-        scope.launch {
-            OperatorRuntime.indicator.collect { updateIndicator(it) }
-        }
-        scope.launch {
-            OperatorRuntime.countdown.collect { state ->
-                if (state != null) view?.text = "●\n${state.remainingSeconds}"
-            }
-        }
+        scope.launch { OperatorRuntime.indicator.collect { updateIndicator(it) } }
+        scope.launch { OperatorRuntime.countdown.collect { state -> if (state != null) view?.text = "●\n${state.remainingSeconds}" } }
     }
 
     private fun notification(): Notification {
         val channelId = "aura_operator"
         if (Build.VERSION.SDK_INT >= 26) {
-            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
-                .createNotificationChannel(NotificationChannel(channelId, "AURA-X Operator", NotificationManager.IMPORTANCE_LOW))
+            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(
+                NotificationChannel(channelId, "AURA-X Operator", NotificationManager.IMPORTANCE_LOW)
+            )
         }
         val abortIntent = PendingIntent.getBroadcast(
             this, 11,
@@ -46,33 +41,31 @@ class OperatorOverlayService : Service() {
         )
         return Notification.Builder(this, channelId)
             .setContentTitle("AURA-X Operator active")
-            .setContentText("Visible automation indicator is active")
+            .setContentText("Tap Stop to immediately abort automation")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .addAction(Notification.Action.Builder(null, "Stop AURA-X Operator", abortIntent).build())
             .setOngoing(true)
+            .setCategory(Notification.CATEGORY_SERVICE)
             .build()
     }
 
     private fun showIndicator() {
         view = TextView(this).apply {
             text = "●"
-            textSize = 24f
+            textSize = 20f
             gravity = Gravity.CENTER
             setTextColor(Color.rgb(52, 211, 153))
-            setBackgroundColor(Color.argb(80, 0, 0, 0))
+            setBackgroundColor(Color.argb(90, 0, 0, 0))
             setOnClickListener { OperatorRuntime.abort() }
             contentDescription = "AURA-X Operator status. Tap to abort."
+            isClickable = true
         }
         val type = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE
         val params = WindowManager.LayoutParams(
-            64, 64, type,
+            48, 48, type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.END
-            x = 16
-            y = 48
-        }
+        ).apply { gravity = Gravity.TOP or Gravity.END; x = 16; y = 48 }
         runCatching { wm?.addView(view, params) }
     }
 

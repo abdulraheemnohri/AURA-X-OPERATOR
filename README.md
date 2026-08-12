@@ -2,43 +2,58 @@
 
 **Your Phone. Your Operator. Under Your Command.**
 
-A sideloaded, local-first Android automation assistant built around AccessibilityService, deterministic safety policies, Room audit logs, Compose UI, and a native llama.cpp runtime.
+AURA-X Operator is a sideloaded, local-first Android automation assistant built around AccessibilityService, Jetpack Compose, Room and a native llama.cpp bridge.
 
-## Current implementation
+## Current Android target
 
-- Android 9+ / API 28 minimum, API 34 target
-- Kotlin + Jetpack Compose + Material 3
-- AccessibilityService with system-wide observation
-- Password, sensitive-screen, blocked-package, and private-browsing gates
-- Three-second visible click countdown
-- Persistent floating status indicator
-- Tap indicator or press Volume Down to abort
-- Ongoing notification with **Stop AURA-X Operator**
-- Chrome safe subset: HTTPS search/open flow with sensitive-page blocking
-- YouTube safe subset: search/playback/volume; no likes, subscriptions, comments, or ad interaction
-- Deterministic task planner and policy-aware executor
-- Room conversations, messages, memories, tasks, operator actions, and safety events
-- Local screenshot capture with sensitive/private screen blocking on Android 11+
-- Biometric unlock entry point for Operator mode
-- Local GGUF import and llama.cpp JNI inference
-- GitHub Actions Android build + unit-test workflow
+- **Minimum:** Android 13 / API 33
+- **Target/Compile:** Android 14 / API 34
+- **ABI:** arm64-v8a debug APK
+- **Distribution:** direct APK / sideload only
+
+The repository intentionally targets Android 13+; older Android releases are not supported by the current build.
+
+## Implemented capabilities
+
+- Accessibility UI inspection with text/content-description/resource-id/class matching
+- Guarded click, type, scroll and navigation operations
+- Sensitive/password/private-browsing detection
+- Blocked security/payment/authentication package protection
+- Automation policies: Observe Only, Suggest Only, Confirm Actions, Full Auto Low Risk
+- Three-second confirmation countdown for policy-controlled actions
+- Emergency abort through Volume Down, notification action and floating overlay
+- Persistent operator status indicator
+- Chrome safe automation and sensitive-flow blocking
+- YouTube safe automation with likes/subscriptions/comments/ads blocked
+- Installed-app opening and supported Android settings navigation
+- Screenshot capture and accessibility-tree screen context
+- Task planner, executor and post-action verification hooks
+- Room persistence for conversations, messages, memories, tasks, actions and safety events
+- Local CSV safety-log export
+- Biometric operator unlock
+- GGUF model import and llama.cpp JNI runtime integration
+- Voice UI and Android TTS compatibility fallback
+- Whisper/Piper native integration points that require compatible local model/runtime assets
+- Android 13+ CI verification and debug APK artifact publishing
 
 ## Safety model
 
-`OBSERVE_ONLY` and `SUGGEST_ONLY` never execute automation. `CONFIRM_ACTIONS` is the recommended default. `FULL_AUTO_LOW_RISK` is limited by tool risk and the same screen-level guardrails; the operator still uses the visible action gate for clicks.
+AURA-X is deliberately transparent: automation is visible, abortable and audited. Password-like fields, authentication/payment/security flows and private browsing are never automated. The operator does not silently bypass Android permissions.
 
-The app intentionally does not automate password entry, financial/payment flows, OTP/security codes, private browsing, YouTube engagement, comments, or ads.
+## Local model assets
+
+The application does not bundle large AI model weights into the APK. Import a compatible GGUF model through Settings. Whisper/Piper model assets are similarly expected in app-private storage when those native backends are enabled.
 
 ## Build
 
-Open the repository in Android Studio Hedgehog or newer with Android SDK 34, NDK 25.2.9519653, and CMake 3.22.1.
+Use Android Studio Hedgehog or newer with JDK 17. The CI workflow assembles the Android 13+ debug APK and uploads it as a workflow artifact.
 
-The native build fetches pinned llama.cpp release `b10087`, so the first native build requires network access. Runtime inference is local after the model is imported.
+## APK
 
-## Model
+GitHub Actions → latest **Android CI** run → **Artifacts** → `aura-x-operator-android13-debug`.
 
-Import `qwen2.5-0.5b-instruct-q4_k_m.gguf` from the official `Qwen/Qwen2.5-0.5B-Instruct-GGUF` Hugging Face repository through **Settings → Import GGUF model**. Model weights are intentionally excluded from Git.
+Install the APK on an Android 13+ arm64 device, then enable AccessibilityService and overlay access from Settings before running operator actions.
 
-## Distribution
+## Important limitation
 
-This project is designed for personal sideloading. It is not positioned as a covert accessibility automation service or a Play Store accessibility utility.
+Native Whisper/Piper and multimodal vision require their actual model/runtime assets. The Kotlin interfaces and safety plumbing are present, but the repository does not pretend that an absent model file is a working inference backend.
