@@ -24,7 +24,7 @@ jobs:
       - name: Install Android SDK components
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" "cmake;3.22.1" "ndk;25.2.9519653"
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" "cmake;3.31.6" "ndk;25.2.9519653"
       - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.2"
@@ -36,10 +36,11 @@ jobs:
       - name: Assemble debug APK
         run: gradle --no-daemon --stacktrace assembleDebug
       - name: Run unit tests
-        if: ${{ always() }}
-        run: gradle --no-daemon --stacktrace testDebugUnitTest
-      - name: Upload APK
         if: ${{ success() }}
+        run: gradle --no-daemon --stacktrace testDebugUnitTest
+      # Keep the APK available even when tests fail, so a build artifact is not lost.
+      - name: Upload APK
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: aura-x-operator-debug
