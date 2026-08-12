@@ -47,6 +47,14 @@ class SecurePrefs(context: Context) {
         get() = prefs.getInt(KEY_COUNTDOWN, 3).coerceIn(1, 10)
         set(value) = prefs.edit().putInt(KEY_COUNTDOWN, value.coerceIn(1, 10)).apply()
 
+    var maxActionsPerTask: Int
+        get() = prefs.getInt(KEY_MAX_ACTIONS, 30).coerceIn(1, 200)
+        set(value) = prefs.edit().putInt(KEY_MAX_ACTIONS, value.coerceIn(1, 200)).apply()
+
+    var maxTaskSeconds: Int
+        get() = prefs.getInt(KEY_MAX_TASK_SECONDS, 120).coerceIn(5, 900)
+        set(value) = prefs.edit().putInt(KEY_MAX_TASK_SECONDS, value.coerceIn(5, 900)).apply()
+
     var themeMode: String
         get() = prefs.getString(KEY_THEME, "SYSTEM") ?: "SYSTEM"
         set(value) = prefs.edit().putString(KEY_THEME, value).apply()
@@ -91,6 +99,8 @@ class SecurePrefs(context: Context) {
         private const val KEY_HAPTICS = "haptic_feedback"
         private const val KEY_VOICE_INTERRUPT = "voice_auto_interrupt"
         private const val KEY_COUNTDOWN = "confirmation_countdown"
+        private const val KEY_MAX_ACTIONS = "max_actions_per_task"
+        private const val KEY_MAX_TASK_SECONDS = "max_task_seconds"
         private const val KEY_THEME = "theme_mode"
         private const val KEY_MODEL_PATH = "selected_model_path"
         private const val KEY_TEMPERATURE = "model_temperature"
