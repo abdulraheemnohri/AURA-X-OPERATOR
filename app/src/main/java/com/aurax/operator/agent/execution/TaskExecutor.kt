@@ -1,6 +1,7 @@
 package com.aurax.operator.agent.execution
 
 import android.content.Context
+import com.aurax.operator.agent.planner.LocalModelPlanner
 import com.aurax.operator.agent.planner.OperatorPlanner
 import com.aurax.operator.core.app.AppState
 import com.aurax.operator.core.app.OperatorPhase
@@ -20,6 +21,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 class TaskExecutor(private val context: Context) {
     private val db = AuraDatabase.get(context)
     private val planner = OperatorPlanner()
+    private val localModelPlanner = LocalModelPlanner(context)
     private val policyRuntime = PolicyRuntime(context)
     private val pendingActions = PendingActionStore()
     private val confirmation = ConfirmationCoordinator(pendingActions)
@@ -56,7 +58,7 @@ class TaskExecutor(private val context: Context) {
             val operator = service.operator
             val registry = ToolRegistry(listOf(ChromeTool(context, operator), YouTubeTool(context, operator)))
             val android = AndroidTool(context)
-            val steps = planner.plan(input)
+            val steps = localModelPlanner.plan(input) ?: planner.plan(input)
             val logs = mutableListOf<String>()
 
             for ((index, step) in steps.withIndex()) {
@@ -110,7 +112,7 @@ class TaskExecutor(private val context: Context) {
                     continue
                 }
                 if (step.tool == "android_open") {
-                    val targetPackage = step.args.getValue("package")
+                    val targetPackage = step.args["package"] ?: throw IllegalArgumentException("Missing package")
                     if (AccessibilityGuardrails.isBlockedPackage(targetPackage)) {
                         audit("BLOCKED_ACTION", "Protected package", step.description)
                         throw SecurityException("Opening this protected package is blocked")
