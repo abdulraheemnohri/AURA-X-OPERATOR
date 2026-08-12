@@ -4,31 +4,27 @@ import android.content.Context
 import com.aurax.operator.ai.inference.GenerationRequest
 import com.aurax.operator.ai.runtime.LlamaCppRuntime
 import com.aurax.operator.core.security.AccessibilityGuardrails
+import com.aurax.operator.core.security.SecurePrefs
 import org.json.JSONArray
 
-/**
- * Optional local planner. It is deliberately constrained: the model can only
- * propose the same allow-listed tools exposed by the deterministic planner.
- * Invalid JSON, unknown tools or sensitive arguments are rejected and the
- * caller falls back to the deterministic planner.
- */
+/** Optional local planner constrained to the same allow-listed tools as the deterministic planner. */
 class LocalModelPlanner(context: Context) {
-    private val runtime = LlamaCppRuntime(context.applicationContext)
+    private val appContext = context.applicationContext
+    private val runtime = LlamaCppRuntime(appContext)
+    private val prefs = SecurePrefs(appContext)
 
     suspend fun plan(input: String): List<PlanStep>? {
         if (!runtime.isReady()) return null
-        val prompt = buildPrompt(input)
         val raw = runCatching {
             runtime.generate(
                 GenerationRequest(
-                    prompt = prompt,
-                    maxTokens = 512,
-                    temperature = 0.1f,
-                    contextTokens = 2048
+                    prompt = buildPrompt(input),
+                    maxTokens = prefs.modelMaxTokens.coerceAtMost(1024),
+                    temperature = prefs.modelTemperature.coerceAtMost(0.4f),
+                    contextTokens = prefs.modelContextTokens
                 )
             )
         }.getOrNull() ?: return null
-
         return parse(raw)
     }
 
@@ -41,7 +37,7 @@ class LocalModelPlanner(context: Context) {
         youtube_automation: query, action
         android_open: package
         Never plan passwords, OTP, payment, banking, authentication, private/incognito,
-        like/subscribe/comment/ad actions, or any destructive/high-risk action.
+        like/subscribe/comment/ad actions, or destructive/high-risk actions.
         Example: [{"tool":"chrome_automation","description":"Search Chrome for weather","args":{"query":"weather"}}]
         User request: ${input.trim()}
     """.trimIndent()
