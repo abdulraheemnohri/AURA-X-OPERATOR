@@ -28,11 +28,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.2"
+      - name: Toolchain diagnostics
+        run: |
+          java -version
+          gradle --version
+          adb version
       - name: Assemble debug APK
-        run: gradle --no-daemon assembleDebug
+        run: gradle --no-daemon --stacktrace assembleDebug
       - name: Run unit tests
-        run: gradle --no-daemon testDebugUnitTest
+        if: ${{ always() }}
+        run: gradle --no-daemon --stacktrace testDebugUnitTest
       - name: Upload APK
+        if: ${{ success() }}
         uses: actions/upload-artifact@v4
         with:
           name: aura-x-operator-debug

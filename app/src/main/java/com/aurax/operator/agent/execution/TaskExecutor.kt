@@ -24,7 +24,7 @@ class TaskExecutor(private val context: Context) {
             val policy = prefs.policy
             if (policy == "OBSERVE_ONLY" || policy == "SUGGEST_ONLY") {
                 db.dao().updateTask(TaskEntity(taskId, input, "SUGGESTED", "Policy $policy: no automation executed."))
-                db.dao().addSafety(SafetyEventEntity(type = "POLICY_BLOCK", reason = policy, action = input))
+                db.dao().addSafety(SafetyEventEntity(type = "POLICY_BLOCK", reason = policy, packageName = null, action = input))
                 return "I prepared the task, but policy $policy prevents execution."
             }
 
@@ -54,7 +54,7 @@ class TaskExecutor(private val context: Context) {
 
                 val tool = registry.get(step.tool) ?: error("Unsupported tool: ${step.tool}")
                 if (tool.riskLevel.name == "HIGH") {
-                    db.dao().addSafety(SafetyEventEntity(type = "HIGH_RISK", reason = "High-risk tool refused", action = step.description))
+                    db.dao().addSafety(SafetyEventEntity(type = "HIGH_RISK", reason = "High-risk tool refused", packageName = null, action = step.description))
                     throw SecurityException("High-risk automation is disabled")
                 }
                 val result = tool.execute(step.args)
@@ -62,7 +62,7 @@ class TaskExecutor(private val context: Context) {
                     is ToolResult.Success -> logs += result.message
                     is ToolResult.Failure -> throw IllegalStateException(result.message)
                     is ToolResult.Blocked -> {
-                        db.dao().addSafety(SafetyEventEntity(type = "BLOCKED", reason = result.reason, action = step.description))
+                        db.dao().addSafety(SafetyEventEntity(type = "BLOCKED", reason = result.reason, packageName = null, action = step.description))
                         throw SecurityException(result.reason)
                     }
                 }
@@ -84,7 +84,7 @@ class TaskExecutor(private val context: Context) {
         } catch (e: Throwable) {
             val reason = e.message ?: e.javaClass.simpleName
             db.dao().updateTask(TaskEntity(taskId, input, "FAILED", reason))
-            db.dao().addSafety(SafetyEventEntity(type = "TASK_FAILED", reason = reason, action = input))
+            db.dao().addSafety(SafetyEventEntity(type = "TASK_FAILED", reason = reason, packageName = null, action = input))
             "Task stopped safely: $reason"
         }
     }
