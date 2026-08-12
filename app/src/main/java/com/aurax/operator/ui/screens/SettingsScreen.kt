@@ -1,14 +1,14 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.aurax.operator.ui.screens
 
 import android.Manifest
-import android.content.Intent
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -32,7 +32,6 @@ private enum class SettingsCenter(val title: String) {
     ROOT("Settings"), SAFETY("Safety Center"), PRIVACY("Privacy Center"), MODELS("Model Center"), VOICE("Voice Center"), DIAGNOSTICS("Diagnostics")
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen() {
     val context = LocalContext.current
@@ -101,7 +100,6 @@ fun SettingsScreen() {
             Text("Control plane", style = MaterialTheme.typography.headlineMedium)
             Text("Tune operator behavior, permissions, local AI and privacy from one place.", style = MaterialTheme.typography.bodyMedium)
         }
-
         item {
             SettingsSection("Operator readiness", "Everything AURA-X needs before it can safely act") {
                 StatusRow("Accessibility service", accessibility)
@@ -120,7 +118,6 @@ fun SettingsScreen() {
                 OutlinedButton(onClick = { context.startActivity(PermissionCenter.overlaySettingsIntent(context)) }, modifier = Modifier.fillMaxWidth()) { Text("Open Overlay Settings") }
             }
         }
-
         item {
             SettingsSection("Automation policy", "Choose how much autonomy the operator receives") {
                 listOf("OBSERVE_ONLY", "SUGGEST_ONLY", "CONFIRM_ACTIONS", "FULL_AUTO_LOW_RISK").forEach { value ->
@@ -134,7 +131,22 @@ fun SettingsScreen() {
                 }
             }
         }
-
+        item {
+            SettingsSection("Operator safety controls", "Local guardrails and recovery defaults") {
+                PreferenceSwitch("Require biometric unlock", "Protect operator sessions before deep automation", prefs.requireBiometric) { prefs.requireBiometric = it }
+                PreferenceSwitch("Always show floating indicator", "Keep operator activity visibly disclosed", prefs.indicatorAlwaysVisible) { prefs.indicatorAlwaysVisible = it }
+                PreferenceSwitch("Block incognito/private browsing", "Do not inspect or automate private browser sessions", prefs.blockIncognito) { prefs.blockIncognito = it }
+                PreferenceSwitch("Haptic feedback", "Confirm important operator state changes", prefs.hapticFeedback) { prefs.hapticFeedback = it }
+                Text("Confirmation countdown: ${prefs.countdownSeconds}s", style = MaterialTheme.typography.titleSmall)
+                Slider(value = prefs.countdownSeconds.toFloat(), onValueChange = { prefs.countdownSeconds = it.toInt().coerceIn(1, 10) }, valueRange = 1f..10f, steps = 8)
+            }
+        }
+        item {
+            SettingsSection("Voice controls", "Configure local voice interaction behavior") {
+                PreferenceSwitch("Auto-interrupt while speaking", "Stop speech output when the user starts speaking", prefs.voiceAutoInterrupt) { prefs.voiceAutoInterrupt = it }
+                CenterButton("Voice Center", "Voice model, microphone and local speech status", Icons.Default.Mic) { center = SettingsCenter.VOICE }
+            }
+        }
         item {
             SettingsSection("Local AI", "No cloud endpoint is required by the operator core") {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -150,16 +162,13 @@ fun SettingsScreen() {
                 OutlinedButton(onClick = { center = SettingsCenter.MODELS }, modifier = Modifier.fillMaxWidth()) { Text("Open Model Center") }
             }
         }
-
         item {
             SettingsSection("Control centers", "Deep configuration and diagnostics") {
                 CenterButton("Safety Center", "Guardrails, blocked actions and abort state", Icons.Default.Security) { center = SettingsCenter.SAFETY }
                 CenterButton("Privacy Center", "Local storage, audit trail and data controls", Icons.Default.Lock) { center = SettingsCenter.PRIVACY }
-                CenterButton("Voice Center", "Voice permissions and local speech status", Icons.Default.Mic) { center = SettingsCenter.VOICE }
                 CenterButton("Diagnostics", "Build, permissions, service and runtime checks", Icons.Default.Build) { center = SettingsCenter.DIAGNOSTICS }
             }
         }
-
         item {
             SettingsSection("Capability matrix", "A truthful view of what is ready on this device") {
                 FeatureCatalog.all.forEach { feature ->
@@ -179,7 +188,6 @@ fun SettingsScreen() {
                 }
             }
         }
-
         item {
             SettingsSection("Privacy & recovery", "Keep the operator auditable and recoverable") {
                 Text("Typed values are intentionally excluded from the operator audit log. Safety events and task metadata stay on-device.", style = MaterialTheme.typography.bodySmall)
@@ -195,8 +203,18 @@ fun SettingsScreen() {
                 }, modifier = Modifier.fillMaxWidth()) { Text("Biometric Operator Unlock") }
             }
         }
-
         if (message.isNotBlank()) item { Text(message, style = MaterialTheme.typography.bodySmall) }
+    }
+}
+
+@Composable
+private fun PreferenceSwitch(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
