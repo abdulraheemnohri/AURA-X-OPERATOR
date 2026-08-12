@@ -1,10 +1,10 @@
 package com.aurax.operator.core.theme
 
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Typography
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private val AuraScheme = darkColorScheme(
@@ -13,6 +13,8 @@ private val AuraScheme = darkColorScheme(
     primaryContainer = AuraColors.SurfaceElevated,
     onPrimaryContainer = AuraColors.TextPrimary,
     secondary = AuraColors.Secondary,
+    onSecondary = AuraColors.Background,
+    secondaryContainer = AuraColors.SurfaceElevated,
     tertiary = AuraColors.Accent,
     background = AuraColors.Background,
     onBackground = AuraColors.TextPrimary,
@@ -21,6 +23,14 @@ private val AuraScheme = darkColorScheme(
     surfaceVariant = AuraColors.SurfaceElevated,
     onSurfaceVariant = AuraColors.TextSecondary,
     error = AuraColors.Error
+)
+
+private val AuraShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(18.dp),
+    large = RoundedCornerShape(24.dp),
+    extraLarge = RoundedCornerShape(32.dp)
 )
 
 private val AuraTypography = Typography(
@@ -35,5 +45,10 @@ private val AuraTypography = Typography(
 
 @Composable
 fun AuraTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = AuraScheme, typography = AuraTypography, content = content)
+    MaterialTheme(
+        colorScheme = AuraScheme,
+        typography = AuraTypography,
+        shapes = AuraShapes,
+        content = content
+    )
 }
