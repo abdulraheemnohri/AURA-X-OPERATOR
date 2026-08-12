@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: ["main", "agent/**", "fix/**"]
+    branches: ["main", "agent/**", "fix/**", "feat/**"]
   pull_request:
     branches: ["main"]
 
@@ -43,15 +43,18 @@ jobs:
           grep -q 'ndkVersion = "25.2.9519653"' app/build.gradle.kts
           grep -q 'arm64-v8a' app/build.gradle.kts
       - name: Assemble Android 13+ debug APK
+        id: build_apk
         run: gradle --no-daemon --stacktrace assembleDebug
-      - name: Run unit tests
-        run: gradle --no-daemon --stacktrace testDebugUnitTest
       - name: Verify APK output
+        if: ${{ steps.build_apk.outcome == 'success' }}
         run: |
           test -f app/build/outputs/apk/debug/app-debug.apk
           ls -lh app/build/outputs/apk/debug/app-debug.apk
+      - name: Run unit tests
+        if: ${{ steps.build_apk.outcome == 'success' }}
+        run: gradle --no-daemon --stacktrace testDebugUnitTest
       - name: Upload Android 13+ debug APK
-        if: ${{ success() }}
+        if: ${{ steps.build_apk.outcome == 'success' }}
         uses: actions/upload-artifact@v5
         with:
           name: aura-x-operator-android13-debug
