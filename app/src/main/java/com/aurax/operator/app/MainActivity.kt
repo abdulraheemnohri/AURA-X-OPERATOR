@@ -7,13 +7,20 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.fragment.app.FragmentActivity
 import com.aurax.operator.core.security.SafetyController
+import com.aurax.operator.core.security.SecurePrefs
 import com.aurax.operator.core.theme.AuraTheme
+import com.aurax.operator.core.theme.AuraThemeMode
 import com.aurax.operator.ui.navigation.AuraNavigation
 
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { AuraTheme { Surface(Modifier.fillMaxSize()) { AuraNavigation() } } }
+        val themeMode = AuraThemeMode.fromStored(SecurePrefs(this).themeMode)
+        setContent {
+            AuraTheme(themeMode) {
+                Surface(Modifier.fillMaxSize()) { AuraNavigation() }
+            }
+        }
     }
 
     override fun onStop() {
