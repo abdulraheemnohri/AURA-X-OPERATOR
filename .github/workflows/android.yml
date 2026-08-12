@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: ["main", "agent/**"]
+    branches: ["main", "agent/**", "fix/**"]
   pull_request:
     branches: ["main"]
 
@@ -33,20 +33,28 @@ jobs:
           java -version
           gradle --version
           adb version
-      - name: Verify Android 13+ minimum SDK
+          cmake --version
+          echo "ANDROID_HOME=$ANDROID_HOME"
+      - name: Verify Android 13+ configuration
         run: |
+          grep -q 'compileSdk = 34' app/build.gradle.kts
           grep -q 'minSdk = 33' app/build.gradle.kts
+          grep -q 'targetSdk = 34' app/build.gradle.kts
+          grep -q 'ndkVersion = "25.2.9519653"' app/build.gradle.kts
+          grep -q 'arm64-v8a' app/build.gradle.kts
       - name: Assemble Android 13+ debug APK
         run: gradle --no-daemon --stacktrace assembleDebug
       - name: Run unit tests
-        if: ${{ success() }}
         run: gradle --no-daemon --stacktrace testDebugUnitTest
-      # Keep the APK available in GitHub Actions even when tests fail.
+      - name: Verify APK output
+        run: |
+          test -f app/build/outputs/apk/debug/app-debug.apk
+          ls -lh app/build/outputs/apk/debug/app-debug.apk
       - name: Upload Android 13+ debug APK
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v5
         with:
           name: aura-x-operator-android13-debug
-          path: app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
