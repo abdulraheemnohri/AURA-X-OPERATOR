@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.aurax.operator.ui.navigation
 
 import androidx.compose.foundation.layout.*
@@ -15,7 +17,6 @@ import com.aurax.operator.ui.screens.*
 
 private data class Destination(val label: String, val icon: ImageVector)
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AuraNavigation() {
     var selected by remember { mutableIntStateOf(0) }
@@ -69,7 +70,6 @@ fun AuraNavigation() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UtilityNavigation(onBack: () -> Unit, screen: @Composable () -> Unit) {
     Scaffold(
