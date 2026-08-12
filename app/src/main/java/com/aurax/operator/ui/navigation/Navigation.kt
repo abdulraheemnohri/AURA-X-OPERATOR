@@ -1,39 +1,20 @@
 package com.aurax.operator.ui.navigation
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Chat
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Task
+import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.text.font.FontWeight
+import com.aurax.operator.core.security.SafetyController
 import com.aurax.operator.core.theme.AuraColors
 import com.aurax.operator.ui.components.OperatorIndicator
-import com.aurax.operator.ui.screens.ChatScreen
-import com.aurax.operator.ui.screens.HomeScreen
-import com.aurax.operator.ui.screens.OperatorScreen
-import com.aurax.operator.ui.screens.SettingsScreen
-import com.aurax.operator.ui.screens.TaskScreen
+import com.aurax.operator.ui.screens.*
 
 private data class Destination(val label: String, val icon: ImageVector)
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AuraNavigation() {
     var selected by remember { mutableIntStateOf(0) }
@@ -44,26 +25,9 @@ fun AuraNavigation() {
         Destination("Tasks", Icons.Default.Task),
         Destination("Settings", Icons.Default.Settings)
     )
-
     Scaffold(
-        topBar = {
-            androidx.compose.material3.TopAppBar(
-                title = { Text("AURA-X", fontWeight = FontWeight.Bold) },
-                actions = { OperatorIndicator(onAbort = {}) }
-            )
-        },
-        bottomBar = {
-            NavigationBar(containerColor = AuraColors.Surface) {
-                destinations.forEachIndexed { index, destination ->
-                    NavigationBarItem(
-                        selected = selected == index,
-                        onClick = { selected = index },
-                        icon = { Icon(destination.icon, destination.label) },
-                        label = { Text(destination.label) }
-                    )
-                }
-            }
-        }
+        topBar = { TopAppBar(title = { Text("AURA-X", fontWeight = FontWeight.Bold) }, actions = { OperatorIndicator(onAbort = { SafetyController.requestAbort("Floating indicator stop") }) }) },
+        bottomBar = { NavigationBar(containerColor = AuraColors.Surface) { destinations.forEachIndexed { index, destination -> NavigationBarItem(selected == index, { selected = index }, { Icon(destination.icon, destination.label) }, label = { Text(destination.label) }) } } }
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when (selected) {
@@ -75,4 +39,9 @@ fun AuraNavigation() {
             }
         }
     }
+}
+
+@Composable
+fun UtilityNavigation(onBack: () -> Unit, screen: @Composable () -> Unit) {
+    Scaffold(topBar = { TopAppBar(title = { Text("AURA-X") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } }) }) { padding -> Box(Modifier.fillMaxSize().padding(padding)) { screen() } }
 }
