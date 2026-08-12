@@ -9,11 +9,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.aurax.operator.ai.model.ModelRepository
+import com.aurax.operator.core.security.SecurePrefs
 
 @Composable
 fun ModelCenterScreen() {
     val context = LocalContext.current
     val repository = remember { ModelRepository(context) }
+    val prefs = remember { SecurePrefs(context) }
     var status by remember { mutableStateOf(repository.status()) }
     var message by remember { mutableStateOf("") }
 
@@ -21,15 +23,19 @@ fun ModelCenterScreen() {
         if (uri == null) return@rememberLauncherForActivityResult
         runCatching {
             repository.importPrimaryModel(uri)
+            prefs.selectedModelPath = repository.primaryModel.absolutePath
             status = repository.status()
-            message = "Model imported and validated locally."
+            message = "Model imported, validated and selected for local inference."
         }.onFailure {
             status = repository.status()
             message = "Import rejected: ${it.message ?: "invalid model"}"
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(
+        Modifier.fillMaxSize().padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
         Text("Local AI Models", style = MaterialTheme.typography.headlineSmall)
         Text("Model files stay on-device. Import, validation and removal are local operations.")
 
@@ -37,6 +43,7 @@ fun ModelCenterScreen() {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Primary planner", style = MaterialTheme.typography.titleMedium)
                 Text("Qwen2.5 0.5B Instruct · GGUF Q4_K_M")
+                Text("Hugging Face: ${ModelRepository.HF_REPOSITORY}", style = MaterialTheme.typography.bodySmall)
                 Text(
                     if (status.isValid) "READY · ${status.sizeMb} MB"
                     else "NOT READY · ${status.error ?: "unknown state"}",
@@ -46,6 +53,10 @@ fun ModelCenterScreen() {
                     Text("SHA-256", style = MaterialTheme.typography.labelMedium)
                     Text(status.sha256, style = MaterialTheme.typography.bodySmall)
                 }
+                Text(
+                    "Selected path: ${prefs.selectedModelPath.ifBlank { "none" }}",
+                    style = MaterialTheme.typography.bodySmall
+                )
                 Button(
                     onClick = { picker.launch(arrayOf("application/octet-stream", "application/x-gguf", "*/*")) },
                     modifier = Modifier.fillMaxWidth()
@@ -54,15 +65,20 @@ fun ModelCenterScreen() {
                     OutlinedButton(
                         onClick = {
                             repository.deletePrimaryModel()
+                            prefs.clearModelSelection()
                             status = repository.status()
                             message = "Primary model removed from local storage."
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Remove primary model") }
                 }
-                OutlinedButton(onClick = { status = repository.status(); message = "Integrity check completed." }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Recheck model integrity")
-                }
+                OutlinedButton(
+                    onClick = {
+                        status = repository.status()
+                        message = if (status.isValid) "Integrity check passed." else "Integrity check failed."
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Recheck model integrity") }
             }
         }
 
