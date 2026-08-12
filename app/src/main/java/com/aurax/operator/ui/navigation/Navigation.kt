@@ -15,6 +15,7 @@ import com.aurax.operator.ui.screens.*
 
 private data class Destination(val label: String, val icon: ImageVector)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AuraNavigation() {
     var selected by remember { mutableIntStateOf(0) }
@@ -25,11 +26,38 @@ fun AuraNavigation() {
         Destination("Tasks", Icons.Default.Task),
         Destination("Settings", Icons.Default.Settings)
     )
+
     Scaffold(
-        topBar = { TopAppBar(title = { Text("AURA-X", fontWeight = FontWeight.Bold) }, actions = { OperatorIndicator(onAbort = { SafetyController.requestAbort("Floating indicator stop") }) }) },
-        bottomBar = { NavigationBar(containerColor = AuraColors.Surface) { destinations.forEachIndexed { index, destination -> NavigationBarItem(selected == index, { selected = index }, { Icon(destination.icon, destination.label) }, label = { Text(destination.label) }) } } }
+        topBar = {
+            TopAppBar(
+                title = { Text("AURA-X", fontWeight = FontWeight.Bold) },
+                actions = {
+                    OperatorIndicator(
+                        onAbort = {
+                            SafetyController.requestAbort("Floating indicator stop")
+                        }
+                    )
+                }
+            )
+        },
+        bottomBar = {
+            NavigationBar(containerColor = AuraColors.Surface) {
+                destinations.forEachIndexed { index, destination ->
+                    NavigationBarItem(
+                        selected = selected == index,
+                        onClick = { selected = index },
+                        icon = { Icon(destination.icon, contentDescription = destination.label) },
+                        label = { Text(destination.label) }
+                    )
+                }
+            }
+        }
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
             when (selected) {
                 0 -> HomeScreen { selected = 1 }
                 1 -> ChatScreen()
@@ -41,7 +69,27 @@ fun AuraNavigation() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UtilityNavigation(onBack: () -> Unit, screen: @Composable () -> Unit) {
-    Scaffold(topBar = { TopAppBar(title = { Text("AURA-X") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } }) }) { padding -> Box(Modifier.fillMaxSize().padding(padding)) { screen() } }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("AURA-X") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            screen()
+        }
+    }
 }
