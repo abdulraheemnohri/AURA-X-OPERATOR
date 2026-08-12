@@ -1,0 +1,4 @@
+<notification-listener-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/notification_listener_description"
+    android:label="AURA-X Notification Reader"
+    android:settingsActivity="com.aurax.operator.app.MainActivity" />
