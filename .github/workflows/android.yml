@@ -33,16 +33,20 @@ jobs:
           java -version
           gradle --version
           adb version
-      - name: Assemble debug APK
+      - name: Verify Android 13+ minimum SDK
+        run: |
+          grep -q 'minSdk = 33' app/build.gradle.kts
+      - name: Assemble Android 13+ debug APK
         run: gradle --no-daemon --stacktrace assembleDebug
       - name: Run unit tests
         if: ${{ success() }}
         run: gradle --no-daemon --stacktrace testDebugUnitTest
-      # Keep the APK available even when tests fail, so a build artifact is not lost.
-      - name: Upload APK
+      # Keep the APK available in GitHub Actions even when tests fail.
+      - name: Upload Android 13+ debug APK
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: aura-x-operator-debug
+          name: aura-x-operator-android13-debug
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+          retention-days: 14
