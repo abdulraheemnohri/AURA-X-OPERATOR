@@ -1,7 +1,7 @@
 package com.aurax.operator.core.security
 
 import android.content.Context
-import com.aurax.operator.core.app.AutomationPolicy
+import com.aurax.operator.operator.AutomationPolicy
 
 class AutomationPolicyStore(context: Context) {
     private val prefs = SecurePrefs(context)
