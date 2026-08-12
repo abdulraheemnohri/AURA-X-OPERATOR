@@ -10,7 +10,6 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
-    <!-- Android 11+ package visibility for the two explicitly supported third-party targets. -->
     <queries>
         <package android:name="com.android.chrome" />
         <package android:name="com.google.android.youtube" />
@@ -46,6 +45,19 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <service
+            android:name=".operator.AuraNotificationListenerService"
+            android:label="AURA-X Notification Reader"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.notification.default_filter_types"
+                android:resource="@xml/notification_listener_config" />
         </service>
 
         <service
