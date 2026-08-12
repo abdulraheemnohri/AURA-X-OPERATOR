@@ -48,13 +48,13 @@ class TaskExecutor(private val context: Context) {
                 AppState.setStep(step.description, if (steps.isEmpty()) 1f else index.toFloat() / steps.size)
                 val risk = AutomationPolicyEngine.classify(step.description, null, false)
                 if (!policyRuntime.canExecute(risk)) {
-                    audit(taskId, "POLICY_BLOCK", risk.name, step.description)
+                    audit("POLICY_BLOCK", risk.name, step.description)
                     throw SecurityException("Policy ${policyRuntime.current()} refused ${risk.name} action")
                 }
 
                 if (policyRuntime.shouldConfirm(risk)) {
                     AppState.setPhase(OperatorPhase.CONFIRMING, "Confirm: ${step.description}")
-                    audit(taskId, "CONFIRMATION_REQUIRED", risk.name, step.description)
+                    audit("CONFIRMATION_REQUIRED", risk.name, step.description)
                     pendingActions.set(PendingActionStore.PendingAction(taskId, step.description, step.tool))
                     OperatorSafety.beginConfirmation(3)
                     val approved = withTimeoutOrNull(3_000L) {
@@ -63,12 +63,15 @@ class TaskExecutor(private val context: Context) {
                     } ?: false
                     if (!approved) {
                         pendingActions.clear()
-                        audit(taskId, "ACTION_ABORTED", "User did not confirm", step.description)
+                        audit("ACTION_ABORTED", "User did not confirm", step.description)
                         throw SecurityException("Action not confirmed")
                     }
                 }
 
-                if (step.tool == "none") { logs += step.description; continue }
+                if (step.tool == "none") {
+                    logs += step.description
+                    continue
+                }
                 if (step.tool == "android_open") {
                     val packageName = step.args.getValue("package")
                     val result = android.openPackage(packageName)
@@ -82,7 +85,7 @@ class TaskExecutor(private val context: Context) {
                             allowed = true
                         )
                     )
-                    audit(taskId, "ACTION_ALLOWED", risk.name, step.description)
+                    audit("ACTION_ALLOWED", risk.name, step.description)
                     continue
                 }
 
@@ -102,7 +105,7 @@ class TaskExecutor(private val context: Context) {
                         allowed = true
                     )
                 )
-                audit(taskId, "ACTION_ALLOWED", risk.name, step.description)
+                audit("ACTION_ALLOWED", risk.name, step.description)
                 delay(50)
             }
 
@@ -121,7 +124,7 @@ class TaskExecutor(private val context: Context) {
         }
     }
 
-    private suspend fun audit(taskId: Long, type: String, reason: String, action: String) {
+    private suspend fun audit(type: String, reason: String, action: String) {
         db.dao().addSafety(SafetyEventEntity(type = type, reason = reason, packageName = null, action = action))
     }
 
