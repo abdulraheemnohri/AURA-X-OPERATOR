@@ -34,9 +34,11 @@ object AccessibilityNodeLocator {
 
     fun walk(root: AccessibilityNodeInfo, visitor: (AccessibilityNodeInfo) -> Unit) {
         visitor(root)
-        for (i in 0 until root.childCount) root.getChild(i)?.let { child ->
-            walk(child, visitor)
-            child.recycle()
+        for (i in 0 until root.childCount) {
+            root.getChild(i)?.let { child ->
+                // AccessibilityNodeInfo.recycle() is deprecated on modern Android and is a no-op.
+                walk(child, visitor)
+            }
         }
     }
 }
