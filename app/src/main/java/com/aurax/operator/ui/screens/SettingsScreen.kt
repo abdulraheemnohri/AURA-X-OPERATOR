@@ -23,6 +23,7 @@ import com.aurax.operator.core.capabilities.CapabilityStatus
 import com.aurax.operator.core.capabilities.FeatureCatalog
 import com.aurax.operator.core.security.PermissionCenter
 import com.aurax.operator.core.security.SecurePrefs
+import com.aurax.operator.core.theme.AuraThemeMode
 import com.aurax.operator.data.LogExporter
 import kotlinx.coroutines.launch
 
@@ -51,6 +52,7 @@ fun SettingsScreen() {
     var maxTokens by remember { mutableIntStateOf(prefs.modelMaxTokens) }
     var contextTokens by remember { mutableIntStateOf(prefs.modelContextTokens) }
     var sttLanguage by remember { mutableStateOf(prefs.sttLanguage) }
+    var themeMode by remember { mutableStateOf(AuraThemeMode.fromStored(prefs.themeMode)) }
     var modelInstalled by remember { mutableStateOf(models.isInstalled()) }
     var message by remember { mutableStateOf("") }
     var refresh by remember { mutableIntStateOf(0) }
@@ -162,10 +164,37 @@ fun SettingsScreen() {
         }
 
         item {
+            SettingsSection("Appearance", "Choose how the AURA-X interface is rendered") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AuraThemeMode.entries.forEach { mode ->
+                        FilterChip(
+                            selected = themeMode == mode,
+                            onClick = {
+                                themeMode = mode
+                                prefs.themeMode = mode.name
+                                message = "Theme saved. Restart AURA-X to apply it everywhere."
+                            },
+                            label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                        )
+                    }
+                }
+                Text("System follows Android appearance. Dark and Light force a fixed theme.", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        item {
             SettingsSection("Local AI model", "Tune llama.cpp inference without a cloud endpoint") {
                 Text(if (modelInstalled) "Primary GGUF: installed" else "Primary GGUF: not installed", style = MaterialTheme.typography.titleSmall)
                 Text("Recommended: Qwen 2.5 0.5B Instruct GGUF Q4_K_M", style = MaterialTheme.typography.bodySmall)
                 Button(onClick = { picker.launch(arrayOf("application/octet-stream", "application/x-gguf", "*/*")) }, modifier = Modifier.fillMaxWidth()) { Text("Import / replace GGUF") }
+                if (modelInstalled) {
+                    OutlinedButton(onClick = {
+                        models.deletePrimaryModel()
+                        modelInstalled = false
+                        prefs.clearModelSelection()
+                        message = "Local GGUF model removed."
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Remove local GGUF") }
+                }
                 OutlinedButton(onClick = { center = SettingsCenter.MODELS }, modifier = Modifier.fillMaxWidth()) { Text("Open Model Center") }
                 Text("Temperature: ${"%.2f".format(temperature)}", style = MaterialTheme.typography.titleSmall)
                 Slider(value = temperature, onValueChange = { temperature = it; prefs.modelTemperature = it }, valueRange = 0f..1.5f, steps = 14)
