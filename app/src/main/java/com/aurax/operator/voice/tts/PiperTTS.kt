@@ -1,2 +1,8 @@
 package com.aurax.operator.voice.tts
-class PiperTTS{fun speak(text:String){/* Load a permitted Piper voice from app-private storage. */}fun stop(){}}
+
+/** Local Piper backend facade. A compatible Piper runtime and voice model must be supplied by the user. */
+class PiperTTS {
+    fun isAvailable(): Boolean = false
+    fun speak(modelPath: String, text: String): Boolean = false
+    fun stop() = Unit
+}
