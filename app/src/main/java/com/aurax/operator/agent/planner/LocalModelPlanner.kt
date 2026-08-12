@@ -3,8 +3,8 @@ package com.aurax.operator.agent.planner
 import android.content.Context
 import com.aurax.operator.ai.inference.GenerationRequest
 import com.aurax.operator.ai.runtime.LlamaCppRuntime
-import com.aurax.operator.core.security.AccessibilityGuardrails
 import com.aurax.operator.core.security.SecurePrefs
+import com.aurax.operator.operator.AccessibilityGuardrails
 import org.json.JSONArray
 
 /** Optional local planner constrained to the same allow-listed tools as the deterministic planner. */
