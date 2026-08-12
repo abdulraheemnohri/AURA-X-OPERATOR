@@ -73,7 +73,15 @@ class TaskExecutor(private val context: Context) {
                     val packageName = step.args.getValue("package")
                     val result = android.openPackage(packageName)
                     logs += result.message()
-                    db.dao().addAction(OperatorActionEntity(taskId, packageName, step.description, step.args.toString(), true))
+                    db.dao().addAction(
+                        OperatorActionEntity(
+                            taskId = taskId,
+                            packageName = packageName,
+                            action = step.description,
+                            target = step.args.toString(),
+                            allowed = true
+                        )
+                    )
                     audit(taskId, "ACTION_ALLOWED", risk.name, step.description)
                     continue
                 }
@@ -85,7 +93,15 @@ class TaskExecutor(private val context: Context) {
                     is ToolResult.Failure -> throw IllegalStateException(result.message)
                     is ToolResult.Blocked -> throw SecurityException(result.reason)
                 }
-                db.dao().addAction(OperatorActionEntity(taskId, step.tool, step.description, step.args.toString(), true))
+                db.dao().addAction(
+                    OperatorActionEntity(
+                        taskId = taskId,
+                        packageName = step.tool,
+                        action = step.description,
+                        target = step.args.toString(),
+                        allowed = true
+                    )
+                )
                 audit(taskId, "ACTION_ALLOWED", risk.name, step.description)
                 delay(50)
             }
