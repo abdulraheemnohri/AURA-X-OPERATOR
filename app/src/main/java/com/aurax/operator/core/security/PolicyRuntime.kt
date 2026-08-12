@@ -15,6 +15,8 @@ class PolicyRuntime(context: Context) {
 
     fun shouldConfirm(risk: ActionRisk): Boolean = AutomationPolicyEngine.requiresConfirmation(current(), risk)
 
+    fun confirmationSeconds(): Int = prefs.confirmationSeconds
+
     fun maxActionsPerTask(): Int = prefs.maxActionsPerTask
 
     fun maxTaskSeconds(): Int = prefs.maxTaskSeconds
