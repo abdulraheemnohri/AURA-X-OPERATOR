@@ -11,6 +11,7 @@ import com.aurax.operator.data.entities.*
 import com.aurax.operator.operator.*
 import com.aurax.operator.tools.android.AndroidTool
 import com.aurax.operator.tools.chrome.ChromeTool
+import com.aurax.operator.tools.registry.RiskLevel
 import com.aurax.operator.tools.registry.ToolRegistry
 import com.aurax.operator.tools.youtube.YouTubeTool
 import kotlinx.coroutines.delay
