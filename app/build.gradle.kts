@@ -11,7 +11,8 @@ android {
 
     defaultConfig {
         applicationId = "com.aurax.operator"
-        minSdk = 28
+        // Android 13 (API 33) is the minimum supported version.
+        minSdk = 33
         targetSdk = 34
         versionCode = 7
         versionName = "3.0.4"
