@@ -32,6 +32,7 @@ private enum class SettingsCenter(val title: String) {
     ROOT("Settings"), SAFETY("Safety Center"), PRIVACY("Privacy Center"), MODELS("Model Center"), VOICE("Voice Center"), DIAGNOSTICS("Diagnostics")
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen() {
     val context = LocalContext.current
