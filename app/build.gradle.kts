@@ -9,42 +9,13 @@ android {
     namespace = "com.aurax.operator"
     compileSdk = 34
     ndkVersion = "25.2.9519653"
-
-    defaultConfig {
-        applicationId = "com.aurax.operator"
-        minSdk = 28
-        targetSdk = 34
-        versionCode = 9
-        versionName = "3.2.0"
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        vectorDrawables { useSupportLibrary = true }
-        ndk.abiFilters.add("arm64-v8a")
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-
+    defaultConfig { applicationId = "com.aurax.operator"; minSdk = 28; targetSdk = 34; versionCode = 10; versionName = "3.3.0"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"; vectorDrawables { useSupportLibrary = true }; ndk.abiFilters.add("arm64-v8a") }
+    compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
-
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.31.6"
-        }
-    }
-
-    buildFeatures {
-        compose = true
-        buildConfig = true
-    }
-
+    externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt"); version = "3.31.6" } }
+    buildFeatures { compose = true; buildConfig = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.8" }
-
-    packaging {
-        resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
-    }
+    packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
 
 dependencies {
