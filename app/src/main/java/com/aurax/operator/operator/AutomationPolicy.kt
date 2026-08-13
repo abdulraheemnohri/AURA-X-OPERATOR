@@ -21,10 +21,10 @@ object AutomationPolicyEngine {
     private val mediumWords = setOf("click", "type", "scroll", "open", "navigate", "search", "play", "pause", "volume", "back", "forward")
 
     fun classify(label: String?, packageName: String?, blocked: Boolean): ActionRisk {
-        if (blocked) return ActionRisk.BLOCKED
+        // A blocked target always wins over a textual risk classification.
+        if (blocked || packageName.orEmpty() in AccessibilityGuardrails.BLOCKED_PACKAGES) return ActionRisk.BLOCKED
         val value = label.orEmpty().lowercase()
         if (destructiveWords.any(value::contains)) return ActionRisk.HIGH
-        if (packageName.orEmpty() in AccessibilityGuardrails.BLOCKED_PACKAGES) return ActionRisk.BLOCKED
         if (mediumWords.any(value::contains)) return ActionRisk.MEDIUM
         return ActionRisk.LOW
     }

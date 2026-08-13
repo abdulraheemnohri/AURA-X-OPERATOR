@@ -6,12 +6,12 @@ AURA-X Operator is a sideloaded, local-first Android automation assistant built 
 
 ## Current Android target
 
-- **Minimum:** Android 13 / API 33
+- **Minimum:** Android 9 / API 28
 - **Target/Compile:** Android 14 / API 34
 - **ABI:** arm64-v8a debug APK
+- **Java:** 17
+- **Native toolchain:** CMake 3.31.6 / NDK 25.2.9519653
 - **Distribution:** direct APK / sideload only
-
-The repository intentionally targets Android 13+; older Android releases are not supported by the current build.
 
 ## Implemented capabilities
 
@@ -34,7 +34,12 @@ The repository intentionally targets Android 13+; older Android releases are not
 - GGUF model import and llama.cpp JNI runtime integration
 - Voice UI and Android TTS compatibility fallback
 - Whisper/Piper native integration points that require compatible local model/runtime assets
-- Android 13+ CI verification and debug APK artifact publishing
+- Persistent onboarding and startup routing
+- Runtime model presets, performance and thermal controls
+- Analytics and safety-event reporting
+- Semantic local memory retrieval infrastructure
+- Guarded tool registry and operator risk classification
+- Android 9+ CI verification and debug APK artifact publishing
 
 ## Safety model
 
@@ -46,13 +51,13 @@ The application does not bundle large AI model weights into the APK. Import a co
 
 ## Build
 
-Use Android Studio Hedgehog or newer with JDK 17. The CI workflow assembles the Android 13+ debug APK and uploads it as a workflow artifact.
+Use Android Studio Hedgehog or newer with JDK 17. The repository includes an Android CI workflow that verifies API 34 compilation, API 28 minimum configuration, arm64-v8a native packaging, unit tests and the debug APK artifact.
 
 ## APK
 
-GitHub Actions → latest **Android CI** run → **Artifacts** → `aura-x-operator-android13-debug`.
+GitHub Actions → latest **Android CI** run → **Artifacts** → `aura-x-operator-android9-debug`.
 
-Install the APK on an Android 13+ arm64 device, then enable AccessibilityService and overlay access from Settings before running operator actions.
+Install the APK on an Android 9+ arm64 device, then enable AccessibilityService and overlay access from Settings before running operator actions.
 
 ## Important limitation
 
