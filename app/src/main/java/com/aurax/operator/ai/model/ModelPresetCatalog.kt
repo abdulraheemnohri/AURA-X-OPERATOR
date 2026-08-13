@@ -1,5 +1,6 @@
 package com.aurax.operator.ai.model
 
+/** User-facing descriptions for the runtime presets exposed by the control plane. */
 data class ModelPresetInfo(
     val preset: ModelPreset,
     val title: String,

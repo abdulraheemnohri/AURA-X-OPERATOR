@@ -49,6 +49,9 @@ class OnboardingController(context: Context) {
     }
 
     fun reset() = prefs.edit().clear().apply()
+    fun reset() {
+        prefs.edit().clear().apply()
+    }
 
     companion object {
         private const val KEY_COMPLETED = "completed"
