@@ -6,6 +6,9 @@ import com.aurax.operator.agent.planner.OperatorPlanner
 import com.aurax.operator.core.app.AppState
 import com.aurax.operator.core.app.OperatorPhase
 import com.aurax.operator.core.common.ToolResult
+import com.aurax.operator.core.security.ConfirmationCoordinator
+import com.aurax.operator.core.security.OperatorSafety
+import com.aurax.operator.core.security.PendingActionStore
 import com.aurax.operator.core.security.PolicyRuntime
 import com.aurax.operator.data.database.AuraDatabase
 import com.aurax.operator.data.entities.MemoryEntity
@@ -107,7 +110,7 @@ class TaskExecutor @Inject constructor(
                 if (policyRuntime.shouldConfirm(risk)) {
                     AppState.setPhase(OperatorPhase.CONFIRMING, "Confirm: ${step.description}")
                     audit("CONFIRMATION_REQUIRED", risk.name, step.description)
-                    pendingActions.set(PendingActionStore.PendingAction(taskId, step.description, step.tool))
+                    pendingActions.set(PendingActionStore.PendingAction(taskId, step.description, packageName))
                     OperatorSafety.beginConfirmation(policyRuntime.confirmationSeconds())
                     val approved = withTimeoutOrNull(policyRuntime.maxTaskSeconds() * 1_000L) {
                         while (AppState.operator.value.phase == OperatorPhase.CONFIRMING && !AppState.operator.value.abortRequested) delay(100)
@@ -135,7 +138,7 @@ class TaskExecutor @Inject constructor(
                     val result = android.openPackage(targetPackage)
                     logs += result.message()
                     actionCount++
-                    db.dao().addAction(OperatorActionEntity(taskId, targetPackage, step.description, step.args.toString(), true))
+                    db.dao().addAction(OperatorActionEntity(taskId = taskId, packageName = targetPackage, action = step.description, target = step.args.toString(), allowed = true))
                     audit("ACTION_ALLOWED", risk.name, step.description)
                     continue
                 }
@@ -150,7 +153,7 @@ class TaskExecutor @Inject constructor(
                     is ToolResult.Blocked -> throw SecurityException(result.reason)
                 }
                 actionCount++
-                db.dao().addAction(OperatorActionEntity(taskId, packageName ?: step.tool, step.description, step.args.toString(), true))
+                db.dao().addAction(OperatorActionEntity(taskId = taskId, packageName = packageName ?: step.tool, action = step.description, target = step.args.toString(), allowed = true))
                 audit("ACTION_ALLOWED", risk.name, step.description)
                 delay(50)
             }
