@@ -29,6 +29,7 @@ fun AuraNavigation() {
         Destination("Chat", Icons.AutoMirrored.Filled.Chat),
         Destination("Operator", Icons.Default.Security),
         Destination("Tasks", Icons.Default.Task),
+        Destination("Models", Icons.Default.Memory),
         Destination("Settings", Icons.Default.Settings)
     )
 
@@ -50,10 +51,7 @@ fun AuraNavigation() {
             )
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = AuraColors.Surface,
-                tonalElevation = 8.dp
-            ) {
+            NavigationBar(containerColor = AuraColors.Surface, tonalElevation = 8.dp) {
                 destinations.forEachIndexed { index, destination ->
                     NavigationBarItem(
                         selected = selected == index,
@@ -72,6 +70,7 @@ fun AuraNavigation() {
                 1 -> ChatScreen()
                 2 -> OperatorScreen()
                 3 -> TaskScreen()
+                4 -> ModelHubScreen()
                 else -> SettingsScreen()
             }
         }
