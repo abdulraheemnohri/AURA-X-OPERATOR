@@ -11,11 +11,10 @@ android {
 
     defaultConfig {
         applicationId = "com.aurax.operator"
-        // Android 13 (API 33) is the minimum supported version.
-        minSdk = 33
+        minSdk = 28
         targetSdk = 34
-        versionCode = 7
-        versionName = "3.0.4"
+        versionCode = 8
+        versionName = "3.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
         ndk.abiFilters.add("arm64-v8a")
@@ -26,9 +25,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    kotlinOptions { jvmTarget = "17" }
 
     externalNativeBuild {
         cmake {
@@ -42,14 +39,10 @@ android {
         buildConfig = true
     }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
-    }
+    composeOptions { kotlinCompilerExtensionVersion = "1.5.8" }
 
     packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
+        resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
     }
 }
 
