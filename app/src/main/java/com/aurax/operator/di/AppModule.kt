@@ -1,6 +1,7 @@
 package com.aurax.operator.di
 
 import android.content.Context
+import androidx.work.WorkManager
 import com.aurax.operator.data.database.AuraDao
 import com.aurax.operator.data.database.AuraDatabase
 import dagger.Module
@@ -20,4 +21,8 @@ object AppModule {
     @Provides
     @Singleton
     fun provideDao(database: AuraDatabase): AuraDao = database.dao()
+
+    @Provides
+    @Singleton
+    fun provideWorkManager(@ApplicationContext context: Context): WorkManager = WorkManager.getInstance(context)
 }
