@@ -3,6 +3,7 @@ package com.aurax.operator.data.database
 import android.content.Context
 import androidx.room.Dao
 import androidx.room.Database
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Room
@@ -20,9 +21,10 @@ import kotlinx.coroutines.flow.Flow
         ConversationEntity::class,
         MessageEntity::class,
         MemoryEntity::class,
-        TaskEntity::class
+        TaskEntity::class,
+        ModelEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AuraDatabase : RoomDatabase() {
@@ -35,6 +37,12 @@ abstract class AuraDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS models (id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, displayName TEXT NOT NULL, category TEXT NOT NULL, format TEXT NOT NULL, quantization TEXT NOT NULL, sourceUrl TEXT NOT NULL, localPath TEXT, sizeBytes INTEGER NOT NULL, downloadedBytes INTEGER NOT NULL, sha256 TEXT NOT NULL, contextLength INTEGER NOT NULL, parameters TEXT NOT NULL, status TEXT NOT NULL, isLoaded INTEGER NOT NULL, lastUsed INTEGER NOT NULL, benchmarkTokensPerSec REAL, userRating INTEGER, tags TEXT NOT NULL, description TEXT NOT NULL, license TEXT NOT NULL, minRamMB INTEGER NOT NULL, recommendedRamMB INTEGER NOT NULL, isBuiltIn INTEGER NOT NULL, isUserImported INTEGER NOT NULL, importDate INTEGER)")
+            }
+        }
+
         @Volatile private var INSTANCE: AuraDatabase? = null
 
         fun get(context: Context): AuraDatabase = INSTANCE ?: synchronized(this) {
@@ -43,7 +51,7 @@ abstract class AuraDatabase : RoomDatabase() {
                 AuraDatabase::class.java,
                 "aura.db"
             )
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
                 .also { INSTANCE = it }
         }
@@ -57,7 +65,10 @@ interface AuraDao {
     @Insert suspend fun addMessage(e: MessageEntity): Long
     @Insert suspend fun addTask(e: TaskEntity): Long
     @Insert suspend fun addMemory(e: MemoryEntity)
+    @Insert suspend fun addModel(e: ModelEntity)
     @Update suspend fun updateTask(e: TaskEntity)
+    @Update suspend fun updateModel(e: ModelEntity)
+    @Delete suspend fun deleteModel(e: ModelEntity)
 
     @Query("SELECT * FROM tasks WHERE id = :taskId LIMIT 1")
     suspend fun getTaskById(taskId: Long): TaskEntity?
@@ -94,4 +105,13 @@ interface AuraDao {
 
     @Query("SELECT * FROM memories WHERE key LIKE '%' || :query || '%' OR value LIKE '%' || :query || '%' ORDER BY timestamp DESC LIMIT :limit")
     suspend fun searchMemories(query: String, limit: Int): List<MemoryEntity>
+
+    @Query("SELECT * FROM models ORDER BY isLoaded DESC, lastUsed DESC, name ASC")
+    fun observeModels(): Flow<List<ModelEntity>>
+
+    @Query("SELECT * FROM models WHERE id = :id LIMIT 1")
+    suspend fun getModel(id: String): ModelEntity?
+
+    @Query("SELECT * FROM models WHERE status = 'READY' ORDER BY lastUsed DESC")
+    suspend fun getReadyModels(): List<ModelEntity>
 }
