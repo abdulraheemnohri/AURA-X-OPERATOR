@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
+    id("com.google.dagger.hilt.android")
 }
 
 android {
@@ -13,8 +14,8 @@ android {
         applicationId = "com.aurax.operator"
         minSdk = 28
         targetSdk = 34
-        versionCode = 8
-        versionName = "3.1.0"
+        versionCode = 9
+        versionName = "3.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
         ndk.abiFilters.add("arm64-v8a")
@@ -59,10 +60,13 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
+    implementation("com.google.dagger:hilt-android:2.50")
+    ksp("com.google.dagger:hilt-compiler:2.50")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.core:core-ktx:1.12.0")
     testImplementation("junit:junit:4.13.2")
