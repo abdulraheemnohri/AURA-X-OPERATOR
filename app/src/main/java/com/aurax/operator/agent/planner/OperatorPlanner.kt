@@ -1,7 +1,9 @@
 package com.aurax.operator.agent.planner
 
+import javax.inject.Inject
+
 /** Deterministic fallback planner. It understands common English, Urdu and Roman Urdu phrases. */
-class OperatorPlanner {
+class OperatorPlanner @Inject constructor() {
     fun plan(input: String, memoryContext: String = ""): List<PlanStep> {
         val q = input.trim()
         if (q.isBlank()) return emptyList()
