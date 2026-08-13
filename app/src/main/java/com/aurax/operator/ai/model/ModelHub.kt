@@ -20,6 +20,19 @@ class ModelHub @Inject constructor(
 
     suspend fun get(id: String): ModelEntity? = dao.getModel(id)
 
+    /** Returns the best installed GGUF model for local operator inference. */
+    suspend fun bestReadyLlm(): ModelEntity? = models.first()
+        .asSequence()
+        .filter { it.status == "READY" && it.format == "GGUF" }
+        .filter { !it.localPath.isNullOrBlank() && File(it.localPath!!).isFile }
+        .filter { it.category.equals("LLM", ignoreCase = true) || it.category.equals("CUSTOM", ignoreCase = true) }
+        .sortedWith(
+            compareByDescending<ModelEntity> { it.benchmarkTokensPerSec ?: 0f }
+                .thenByDescending { it.lastUsed ?: 0L }
+                .thenBy { it.sizeBytes ?: Long.MAX_VALUE }
+        )
+        .firstOrNull()
+
     suspend fun seedBuiltIns() {
         for (model in BuiltInModels.all) {
             if (dao.getModel(model.id) == null) dao.addModel(model)
