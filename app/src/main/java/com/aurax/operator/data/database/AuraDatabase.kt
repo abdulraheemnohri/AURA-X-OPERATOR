@@ -1,12 +1,12 @@
 package com.aurax.operator.data.database
 
 import android.content.Context
-import androidx.room.Database
 import androidx.room.Dao
+import androidx.room.Database
 import androidx.room.Insert
+import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import androidx.room.Query
 import androidx.room.Update
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -62,6 +62,9 @@ interface AuraDao {
     @Query("SELECT * FROM tasks WHERE id = :taskId LIMIT 1")
     suspend fun getTaskById(taskId: Long): TaskEntity?
 
+    @Query("UPDATE tasks SET status = :status, log = :log WHERE id = :taskId")
+    suspend fun setTaskStatus(taskId: Long, status: String, log: String)
+
     @Query("SELECT * FROM tasks ORDER BY createdAt DESC")
     suspend fun tasks(): List<TaskEntity>
 
@@ -73,6 +76,12 @@ interface AuraDao {
 
     @Query("SELECT * FROM messages ORDER BY timestamp DESC LIMIT :limit")
     fun observeRecentMessages(limit: Int): Flow<List<MessageEntity>>
+
+    @Query("DELETE FROM messages")
+    suspend fun clearMessages()
+
+    @Query("DELETE FROM memories")
+    suspend fun clearMemories()
 
     @Query("SELECT * FROM safety_events ORDER BY timestamp DESC")
     suspend fun safetyEvents(): List<SafetyEventEntity>
