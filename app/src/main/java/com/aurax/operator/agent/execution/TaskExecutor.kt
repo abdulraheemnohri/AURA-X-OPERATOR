@@ -31,6 +31,7 @@ class TaskExecutor(private val context: Context) {
 
     suspend fun execute(input: String): String {
         val taskId = db.dao().addTask(TaskEntity(input = input, status = "RUNNING"))
+        db.dao().addMessage(MessageEntity(conversationId = CHAT_CONVERSATION_ID, role = "user", content = input))
         val startedAt = System.currentTimeMillis()
         var actionCount = 0
 
@@ -44,13 +45,22 @@ class TaskExecutor(private val context: Context) {
             OperatorRuntime.ensureNotAborted()
         }
 
+        suspend fun finishTask(status: String, log: String) {
+            val existing = db.dao().getTaskById(taskId)
+            if (existing != null) {
+                db.dao().updateTask(existing.copy(status = status, log = log))
+            }
+        }
+
         return try {
             if (input.isBlank()) throw IllegalArgumentException("Task input is empty")
 
             if (policyRuntime.current() == AutomationPolicy.OBSERVE_ONLY || policyRuntime.current() == AutomationPolicy.SUGGEST_ONLY) {
-                db.dao().updateTask(TaskEntity(taskId, input, "SUGGESTED", "Policy prevents automation."))
+                finishTask("SUGGESTED", "Policy prevents automation.")
                 db.dao().addSafety(SafetyEventEntity(type = "POLICY_BLOCK", reason = policyRuntime.current().name, packageName = null, action = input))
-                return "I prepared the task, but the current policy prevents execution."
+                val output = "I prepared the task, but the current policy prevents execution."
+                db.dao().addMessage(MessageEntity(conversationId = CHAT_CONVERSATION_ID, role = "assistant", content = output))
+                return output
             }
 
             enforceRuntimeLimits()
@@ -58,7 +68,8 @@ class TaskExecutor(private val context: Context) {
             val operator = service.operator
             val registry = ToolRegistry(listOf(ChromeTool(context, operator), YouTubeTool(context, operator)))
             val android = AndroidTool(context)
-            val steps = localModelPlanner.plan(input) ?: planner.plan(input)
+            val plannerInput = buildPlannerInput(input)
+            val steps = localModelPlanner.plan(plannerInput) ?: planner.plan(input)
             val logs = mutableListOf<String>()
 
             for ((index, step) in steps.withIndex()) {
@@ -133,7 +144,10 @@ class TaskExecutor(private val context: Context) {
                     continue
                 }
 
-                val tool = registry.get(step.tool) ?: error("Unsupported tool: ${step.tool}")
+                val tool = registry.get(step.tool)
+                    ?: throw IllegalArgumentException(
+                        "Unsupported tool '${step.tool}'. Supported tools: chrome_automation, youtube_automation, android_open."
+                    )
                 if (tool.riskLevel == RiskLevel.HIGH) throw SecurityException("High-risk automation is disabled")
                 when (val result = tool.execute(step.args)) {
                     is ToolResult.Success -> logs += result.message
@@ -155,19 +169,31 @@ class TaskExecutor(private val context: Context) {
             }
 
             AppState.setPhase(OperatorPhase.COMPLETED, "Task completed")
-            val output = logs.joinToString(" ")
-            db.dao().updateTask(TaskEntity(taskId, input, "COMPLETED", output))
+            val output = logs.joinToString(" ").ifBlank { "Task completed." }
+            finishTask("COMPLETED", output)
             db.dao().addMemory(MemoryEntity(key = "last_task", value = input))
-            output.ifBlank { "Task completed." }
+            db.dao().addMessage(MessageEntity(conversationId = CHAT_CONVERSATION_ID, role = "assistant", content = output))
+            output
         } catch (e: Throwable) {
             pendingActions.clear()
             val reason = e.message ?: e.javaClass.simpleName
             val aborted = reason.contains("abort", true) || AppState.operator.value.phase == OperatorPhase.ABORTED
             AppState.setPhase(if (aborted) OperatorPhase.ABORTED else OperatorPhase.ERROR, reason)
-            db.dao().updateTask(TaskEntity(taskId, input, if (aborted) "ABORTED" else "FAILED", reason))
+            finishTask(if (aborted) "ABORTED" else "FAILED", reason)
             db.dao().addSafety(SafetyEventEntity(type = if (aborted) "TASK_ABORTED" else "TASK_FAILED", reason = reason, packageName = null, action = input))
-            "Task stopped safely: $reason"
+            val output = "Task stopped safely: $reason"
+            db.dao().addMessage(MessageEntity(conversationId = CHAT_CONVERSATION_ID, role = "assistant", content = output))
+            output
         }
+    }
+
+    private suspend fun buildPlannerInput(input: String): String {
+        val memoryContext = db.dao().memories()
+            .asSequence()
+            .filter { !AccessibilityGuardrails.isSensitiveText(it.key) && !AccessibilityGuardrails.isSensitiveText(it.value) }
+            .take(8)
+            .joinToString("\n") { "${it.key}: ${it.value}" }
+        return if (memoryContext.isBlank()) input else "Known safe local memory:\n$memoryContext\n\nCurrent request:\n$input"
     }
 
     private suspend fun audit(type: String, reason: String, action: String) {
@@ -178,5 +204,9 @@ class TaskExecutor(private val context: Context) {
         is ToolResult.Success -> message
         is ToolResult.Failure -> message
         is ToolResult.Blocked -> reason
+    }
+
+    companion object {
+        const val CHAT_CONVERSATION_ID = 0L
     }
 }
