@@ -11,11 +11,12 @@ android {
 
     defaultConfig {
         applicationId = "com.aurax.operator"
-        // Android 13 (API 33) is the minimum supported version.
-        minSdk = 33
+        // Android 9 (API 28) is the minimum supported version. Features that
+        // require newer APIs must remain behind runtime SDK checks.
+        minSdk = 28
         targetSdk = 34
-        versionCode = 7
-        versionName = "3.0.4"
+        versionCode = 8
+        versionName = "3.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
         ndk.abiFilters.add("arm64-v8a")
