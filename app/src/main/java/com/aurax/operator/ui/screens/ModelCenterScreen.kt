@@ -50,8 +50,7 @@ fun ModelCenterScreen() {
                     style = MaterialTheme.typography.titleSmall
                 )
 
-                val sha256 = status.sha256
-                if (sha256 != null) {
+                status.sha256?.let { sha256 ->
                     Text("SHA-256", style = MaterialTheme.typography.labelMedium)
                     Text(sha256, style = MaterialTheme.typography.bodySmall)
                 }
