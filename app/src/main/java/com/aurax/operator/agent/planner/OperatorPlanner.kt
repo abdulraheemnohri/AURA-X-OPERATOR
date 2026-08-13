@@ -1,66 +1,78 @@
 package com.aurax.operator.agent.planner
 
-data class PlanStep(
-    val id: String,
-    val description: String,
-    val tool: String,
-    val args: Map<String, String> = emptyMap()
-)
-
+/** Deterministic fallback planner. It understands common English, Urdu and Roman Urdu phrases. */
 class OperatorPlanner {
-    fun plan(input: String): List<PlanStep> {
+    fun plan(input: String, memoryContext: String = ""): List<PlanStep> {
         val q = input.trim()
         if (q.isBlank()) return emptyList()
 
-        // Match YouTube-specific commands before the generic search command.
-        // Otherwise "search youtube cats" is incorrectly planned as a Chrome search.
-        val youtube = Regex("(?:search youtube|youtube search)\\s+(?:for\\s+)?(.+)", RegexOption.IGNORE_CASE).find(q)
+        val youtube = Regex(
+            "(?:search youtube|youtube search|yt search|youtube pe|youtube mein|youtube par)\\s+(?:for\\s+)?(.+)",
+            RegexOption.IGNORE_CASE
+        ).find(q)
         if (youtube != null) {
-            return listOf(
-                PlanStep(
-                    "1",
-                    "Search YouTube for ${youtube.groupValues[1]}",
-                    "youtube_automation",
-                    mapOf("query" to youtube.groupValues[1])
-                )
-            )
+            return step("Search YouTube for ${youtube.groupValues[1]}", "youtube_automation", "query" to youtube.groupValues[1])
         }
 
-        val search = Regex("(?:open chrome and )?search\\s+(?:for\\s+)?(.+)", RegexOption.IGNORE_CASE).find(q)
-        if (search != null) {
-            return listOf(
-                PlanStep(
-                    "1",
-                    "Open Chrome and search for ${search.groupValues[1]}",
-                    "chrome_automation",
-                    mapOf("query" to search.groupValues[1])
-                )
-            )
+        val chrome = Regex(
+            "(?:open chrome and )?(?:search|find)\\s+(?:for\\s+)?(.+)",
+            RegexOption.IGNORE_CASE
+        ).find(q)
+        if (chrome != null) {
+            return step("Open Chrome and search for ${chrome.groupValues[1]}", "chrome_automation", "query" to chrome.groupValues[1])
         }
 
-        val openPackage = Regex("(?:open|launch) package ([A-Za-z0-9_.]+)", RegexOption.IGNORE_CASE).find(q)
+        val romanChrome = Regex(
+            "(?:chrome|browser)\\s+(?:mein|pe|par)\\s+(.+?)\\s+(?:search|dhundo|dhoondo)",
+            RegexOption.IGNORE_CASE
+        ).find(q)
+        if (romanChrome != null) {
+            return step("Search Chrome for ${romanChrome.groupValues[1]}", "chrome_automation", "query" to romanChrome.groupValues[1])
+        }
+
+        val open = Regex(
+            "(?:open|launch|start|kholo|khol do|chalao)\\s+(?:app\\s+)?(.+)",
+            RegexOption.IGNORE_CASE
+        ).find(q) ?: Regex(
+            "(.+)\\s+(?:kholo|open karo|khol do)",
+            RegexOption.IGNORE_CASE
+        ).find(q)
+        if (open != null) {
+            val target = resolveAppName(open.groupValues[1].trim())
+            return step("Open $target", "android_open", "package" to target)
+        }
+
+        val openPackage = Regex(
+            "(?:open|launch) package ([A-Za-z0-9_.]+)",
+            RegexOption.IGNORE_CASE
+        ).find(q)
         if (openPackage != null) {
-            return listOf(
-                PlanStep(
-                    "1",
-                    "Open ${openPackage.groupValues[1]}",
-                    "android_open",
-                    mapOf("package" to openPackage.groupValues[1])
-                )
-            )
+            return step("Open ${openPackage.groupValues[1]}", "android_open", "package" to openPackage.groupValues[1])
         }
 
         if (q.contains("play first", true) && q.contains("youtube", true)) {
-            return listOf(
-                PlanStep(
-                    "1",
-                    "Play the first safe YouTube result",
-                    "youtube_automation",
-                    mapOf("action" to "play")
-                )
-            )
+            return step("Play the first safe YouTube result", "youtube_automation", "action" to "play")
         }
 
-        return listOf(PlanStep("1", "No supported safe action was recognized", "none"))
+        return listOf(
+            PlanStep(
+                "1",
+                if (memoryContext.isBlank()) "No supported safe action was recognized" else "No supported safe action was recognized; memory context was available to the local planner",
+                "none"
+            )
+        )
+    }
+
+    private fun step(description: String, tool: String, vararg args: Pair<String, String>): List<PlanStep> =
+        listOf(PlanStep("1", description, tool, mapOf(*args)))
+
+    private fun resolveAppName(name: String): String = when (name.lowercase().trim()) {
+        "chrome", "google chrome", "browser" -> "com.android.chrome"
+        "youtube", "yt" -> "com.google.android.youtube"
+        "settings", "android settings" -> "com.android.settings"
+        "calculator", "calc" -> "com.google.android.calculator"
+        "maps", "google maps" -> "com.google.android.apps.maps"
+        "dialer", "phone" -> "com.google.android.dialer"
+        else -> name
     }
 }
