@@ -148,7 +148,7 @@ class TaskExecutor @Inject constructor(
             val aborted = reason.contains("abort", true) || AppState.operator.value.phase == OperatorPhase.ABORTED
             AppState.setPhase(if (aborted) OperatorPhase.ABORTED else OperatorPhase.ERROR, reason)
             db.dao().setTaskStatus(taskId, if (aborted) "ABORTED" else "FAILED", reason)
-            db.dao().addSafety(SafetyEventEntity(if (aborted) "TASK_ABORTED" else "TASK_FAILED", reason, null, input))
+            db.dao().addSafety(SafetyEventEntity(type = if (aborted) "TASK_ABORTED" else "TASK_FAILED", reason = reason, packageName = null, action = input))
             "Task stopped safely: $reason"
         }
     }
