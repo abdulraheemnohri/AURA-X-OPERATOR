@@ -6,13 +6,16 @@ import com.aurax.operator.agent.planner.OperatorPlanner
 import com.aurax.operator.core.app.AppState
 import com.aurax.operator.core.app.OperatorPhase
 import com.aurax.operator.core.common.ToolResult
-import com.aurax.operator.core.security.*
+import com.aurax.operator.core.security.PolicyRuntime
 import com.aurax.operator.data.database.AuraDatabase
 import com.aurax.operator.data.entities.MemoryEntity
 import com.aurax.operator.data.entities.OperatorActionEntity
 import com.aurax.operator.data.entities.SafetyEventEntity
 import com.aurax.operator.data.entities.TaskEntity
+import com.aurax.operator.operator.ActionRisk
 import com.aurax.operator.operator.AccessibilityGuardrails
+import com.aurax.operator.operator.AutomationPolicy
+import com.aurax.operator.operator.AutomationPolicyEngine
 import com.aurax.operator.operator.AuraAccessibilityService
 import com.aurax.operator.operator.OperatorRuntime
 import com.aurax.operator.tools.android.AndroidTool
@@ -71,11 +74,8 @@ class TaskExecutor @Inject constructor(
             val android = AndroidTool(context)
 
             val relevantMemories = db.dao().searchMemories(input, limit = 5)
-            val memoryContext = relevantMemories.joinToString("\n") {
-                "- ${it.key}: ${it.value}"
-            }
-            val steps = localModelPlanner.plan(input, memoryContext)
-                ?: planner.plan(input, memoryContext)
+            val memoryContext = relevantMemories.joinToString("\n") { "- ${it.key}: ${it.value}" }
+            val steps = localModelPlanner.plan(input, memoryContext) ?: planner.plan(input, memoryContext)
             val logs = mutableListOf<String>()
 
             for ((index, step) in steps.withIndex()) {
@@ -110,9 +110,7 @@ class TaskExecutor @Inject constructor(
                     pendingActions.set(PendingActionStore.PendingAction(taskId, step.description, step.tool))
                     OperatorSafety.beginConfirmation(policyRuntime.confirmationSeconds())
                     val approved = withTimeoutOrNull(policyRuntime.maxTaskSeconds() * 1_000L) {
-                        while (AppState.operator.value.phase == OperatorPhase.CONFIRMING && !AppState.operator.value.abortRequested) {
-                            delay(100)
-                        }
+                        while (AppState.operator.value.phase == OperatorPhase.CONFIRMING && !AppState.operator.value.abortRequested) delay(100)
                         AppState.operator.value.phase == OperatorPhase.EXECUTING
                     } ?: false
                     if (!approved) {
@@ -123,15 +121,13 @@ class TaskExecutor @Inject constructor(
                 }
 
                 enforceRuntimeLimits()
-
                 if (step.tool == "none") {
                     logs += step.description
                     continue
                 }
 
                 if (step.tool == "android_open") {
-                    val targetPackage = step.args["package"]
-                        ?: throw IllegalArgumentException("Missing package")
+                    val targetPackage = step.args["package"] ?: throw IllegalArgumentException("Missing package")
                     if (AccessibilityGuardrails.isBlockedPackage(targetPackage)) {
                         audit("BLOCKED_ACTION", "Protected package", step.description)
                         throw SecurityException("Opening this protected package is blocked")
@@ -139,30 +135,14 @@ class TaskExecutor @Inject constructor(
                     val result = android.openPackage(targetPackage)
                     logs += result.message()
                     actionCount++
-                    db.dao().addAction(
-                        OperatorActionEntity(
-                            taskId = taskId,
-                            packageName = targetPackage,
-                            action = step.description,
-                            target = step.args.toString(),
-                            allowed = true
-                        )
-                    )
+                    db.dao().addAction(OperatorActionEntity(taskId, targetPackage, step.description, step.args.toString(), true))
                     audit("ACTION_ALLOWED", risk.name, step.description)
                     continue
                 }
 
                 val tool = registry.get(step.tool)
-                if (tool == null) {
-                    val supported = registry.listTools().joinToString(", ")
-                    audit("UNSUPPORTED_TOOL", "Tool not found: ${step.tool}", step.description)
-                    throw UnsupportedOperationException(
-                        "I don't have a tool for '${step.tool}'. Supported tools: $supported"
-                    )
-                }
-                if (tool.riskLevel == RiskLevel.HIGH) {
-                    throw SecurityException("High-risk automation is disabled")
-                }
+                    ?: throw UnsupportedOperationException("I don't have a tool for '${step.tool}'. Supported tools: ${registry.listTools().joinToString(", ")}")
+                if (tool.riskLevel == RiskLevel.HIGH) throw SecurityException("High-risk automation is disabled")
 
                 when (val result = tool.execute(step.args)) {
                     is ToolResult.Success -> logs += result.message
@@ -170,15 +150,7 @@ class TaskExecutor @Inject constructor(
                     is ToolResult.Blocked -> throw SecurityException(result.reason)
                 }
                 actionCount++
-                db.dao().addAction(
-                    OperatorActionEntity(
-                        taskId = taskId,
-                        packageName = packageName ?: step.tool,
-                        action = step.description,
-                        target = step.args.toString(),
-                        allowed = true
-                    )
-                )
+                db.dao().addAction(OperatorActionEntity(taskId, packageName ?: step.tool, step.description, step.args.toString(), true))
                 audit("ACTION_ALLOWED", risk.name, step.description)
                 delay(50)
             }
@@ -186,9 +158,7 @@ class TaskExecutor @Inject constructor(
             AppState.setPhase(OperatorPhase.COMPLETED, "Task completed")
             val output = logs.joinToString(" ").ifBlank { "Task completed." }
             db.dao().setTaskStatus(taskId, "COMPLETED", output)
-            extractKeyMemory(input)?.let { (key, value) ->
-                db.dao().addMemory(MemoryEntity(key = key, value = value))
-            }
+            extractKeyMemory(input)?.let { (key, value) -> db.dao().addMemory(MemoryEntity(key = key, value = value)) }
             output
         } catch (e: Throwable) {
             pendingActions.clear()
@@ -196,14 +166,7 @@ class TaskExecutor @Inject constructor(
             val aborted = reason.contains("abort", true) || AppState.operator.value.phase == OperatorPhase.ABORTED
             AppState.setPhase(if (aborted) OperatorPhase.ABORTED else OperatorPhase.ERROR, reason)
             db.dao().setTaskStatus(taskId, if (aborted) "ABORTED" else "FAILED", reason)
-            db.dao().addSafety(
-                SafetyEventEntity(
-                    type = if (aborted) "TASK_ABORTED" else "TASK_FAILED",
-                    reason = reason,
-                    packageName = null,
-                    action = input
-                )
-            )
+            db.dao().addSafety(SafetyEventEntity(if (aborted) "TASK_ABORTED" else "TASK_FAILED", reason, null, input))
             "Task stopped safely: $reason"
         }
     }
@@ -211,25 +174,10 @@ class TaskExecutor @Inject constructor(
     private fun extractKeyMemory(input: String): Pair<String, String>? {
         val normalized = input.trim()
         return when {
-            normalized.contains("my name is", true) -> {
-                normalized.substringAfter("my name is", "").trim().takeIf { it.isNotBlank() }?.let {
-                    "user_name" to it.take(80)
-                }
-            }
-            normalized.contains("mera naam", true) -> {
-                normalized.substringAfter("mera naam", "").trim()
-                    .removePrefix("hai").trim().takeIf { it.isNotBlank() }?.let {
-                        "user_name" to it.take(80)
-                    }
-            }
-            normalized.contains("i like", true) -> {
-                normalized.substringAfter("i like", "").trim().takeIf { it.isNotBlank() }?.let {
-                    "preference" to it.take(120)
-                }
-            }
-            normalized.contains("mujhe", true) && normalized.contains("pasand", true) -> {
-                normalized.takeIf { it.length <= 180 }?.let { "preference" to it }
-            }
+            normalized.contains("my name is", true) -> normalized.substringAfter("my name is").trim().takeIf { it.isNotBlank() }?.let { "user_name" to it.take(80) }
+            normalized.contains("mera naam", true) -> normalized.substringAfter("mera naam").trim().removePrefix("hai").trim().takeIf { it.isNotBlank() }?.let { "user_name" to it.take(80) }
+            normalized.contains("i like", true) -> normalized.substringAfter("i like").trim().takeIf { it.isNotBlank() }?.let { "preference" to it.take(120) }
+            normalized.contains("mujhe", true) && normalized.contains("pasand", true) -> normalized.takeIf { it.length <= 180 }?.let { "preference" to it }
             else -> null
         }
     }
