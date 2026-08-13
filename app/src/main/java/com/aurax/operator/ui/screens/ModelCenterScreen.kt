@@ -49,18 +49,24 @@ fun ModelCenterScreen() {
                     else "NOT READY · ${status.error ?: "unknown state"}",
                     style = MaterialTheme.typography.titleSmall
                 )
-                if (status.sha256 != null) {
+
+                val sha256 = status.sha256
+                if (sha256 != null) {
                     Text("SHA-256", style = MaterialTheme.typography.labelMedium)
-                    Text(status.sha256, style = MaterialTheme.typography.bodySmall)
+                    Text(sha256, style = MaterialTheme.typography.bodySmall)
                 }
+
                 Text(
                     "Selected path: ${prefs.selectedModelPath.ifBlank { "none" }}",
                     style = MaterialTheme.typography.bodySmall
                 )
                 Button(
-                    onClick = { picker.launch(arrayOf("application/octet-stream", "application/x-gguf", "*/*")) },
+                    onClick = {
+                        picker.launch(arrayOf("application/octet-stream", "application/x-gguf", "*/*"))
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Import / replace GGUF") }
+
                 if (status.isValid) {
                     OutlinedButton(
                         onClick = {
@@ -72,10 +78,15 @@ fun ModelCenterScreen() {
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Remove primary model") }
                 }
+
                 OutlinedButton(
                     onClick = {
                         status = repository.status()
-                        message = if (status.isValid) "Integrity check passed." else "Integrity check failed."
+                        message = if (status.isValid) {
+                            "Integrity check passed."
+                        } else {
+                            "Integrity check failed."
+                        }
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Recheck model integrity") }
