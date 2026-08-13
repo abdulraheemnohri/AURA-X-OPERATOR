@@ -8,20 +8,30 @@ import com.aurax.operator.core.app.OperatorPhase
 import com.aurax.operator.core.common.ToolResult
 import com.aurax.operator.core.security.*
 import com.aurax.operator.data.database.AuraDatabase
-import com.aurax.operator.data.entities.*
-import com.aurax.operator.operator.*
+import com.aurax.operator.data.entities.MemoryEntity
+import com.aurax.operator.data.entities.OperatorActionEntity
+import com.aurax.operator.data.entities.SafetyEventEntity
+import com.aurax.operator.data.entities.TaskEntity
+import com.aurax.operator.operator.AccessibilityGuardrails
+import com.aurax.operator.operator.AuraAccessibilityService
+import com.aurax.operator.operator.OperatorRuntime
 import com.aurax.operator.tools.android.AndroidTool
 import com.aurax.operator.tools.chrome.ChromeTool
 import com.aurax.operator.tools.registry.RiskLevel
 import com.aurax.operator.tools.registry.ToolRegistry
 import com.aurax.operator.tools.youtube.YouTubeTool
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 
-class TaskExecutor(private val context: Context) {
-    private val db = AuraDatabase.get(context)
-    private val planner = OperatorPlanner()
-    private val localModelPlanner = LocalModelPlanner(context)
+/** Executes only allow-listed, policy-checked tasks. All state remains local. */
+class TaskExecutor @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val db: AuraDatabase,
+    private val planner: OperatorPlanner,
+    private val localModelPlanner: LocalModelPlanner
+) {
     private val policyRuntime = PolicyRuntime(context)
     private val pendingActions = PendingActionStore()
     private val confirmation = ConfirmationCoordinator(pendingActions)
@@ -48,22 +58,29 @@ class TaskExecutor(private val context: Context) {
             if (input.isBlank()) throw IllegalArgumentException("Task input is empty")
 
             if (policyRuntime.current() == AutomationPolicy.OBSERVE_ONLY || policyRuntime.current() == AutomationPolicy.SUGGEST_ONLY) {
-                db.dao().updateTask(TaskEntity(taskId, input, "SUGGESTED", "Policy prevents automation."))
+                db.dao().setTaskStatus(taskId, "SUGGESTED", "Policy prevents automation.")
                 db.dao().addSafety(SafetyEventEntity(type = "POLICY_BLOCK", reason = policyRuntime.current().name, packageName = null, action = input))
                 return "I prepared the task, but the current policy prevents execution."
             }
 
             enforceRuntimeLimits()
-            val service = AuraAccessibilityService.instance ?: throw IllegalStateException("AccessibilityService is not enabled")
+            val service = AuraAccessibilityService.instance
+                ?: throw IllegalStateException("AccessibilityService is not enabled")
             val operator = service.operator
             val registry = ToolRegistry(listOf(ChromeTool(context, operator), YouTubeTool(context, operator)))
             val android = AndroidTool(context)
-            val steps = localModelPlanner.plan(input) ?: planner.plan(input)
+
+            val relevantMemories = db.dao().searchMemories(input, limit = 5)
+            val memoryContext = relevantMemories.joinToString("\n") {
+                "- ${it.key}: ${it.value}"
+            }
+            val steps = localModelPlanner.plan(input, memoryContext)
+                ?: planner.plan(input, memoryContext)
             val logs = mutableListOf<String>()
 
             for ((index, step) in steps.withIndex()) {
                 enforceRuntimeLimits()
-                AppState.setStep(step.description, if (steps.isEmpty()) 1f else index.toFloat() / steps.size)
+                AppState.setStep(step.description, (index + 1).toFloat() / steps.size.coerceAtLeast(1))
 
                 val packageName = step.args["package"]
                     ?: step.args["packageName"]
@@ -111,8 +128,10 @@ class TaskExecutor(private val context: Context) {
                     logs += step.description
                     continue
                 }
+
                 if (step.tool == "android_open") {
-                    val targetPackage = step.args["package"] ?: throw IllegalArgumentException("Missing package")
+                    val targetPackage = step.args["package"]
+                        ?: throw IllegalArgumentException("Missing package")
                     if (AccessibilityGuardrails.isBlockedPackage(targetPackage)) {
                         audit("BLOCKED_ACTION", "Protected package", step.description)
                         throw SecurityException("Opening this protected package is blocked")
@@ -133,8 +152,18 @@ class TaskExecutor(private val context: Context) {
                     continue
                 }
 
-                val tool = registry.get(step.tool) ?: error("Unsupported tool: ${step.tool}")
-                if (tool.riskLevel == RiskLevel.HIGH) throw SecurityException("High-risk automation is disabled")
+                val tool = registry.get(step.tool)
+                if (tool == null) {
+                    val supported = registry.listTools().joinToString(", ")
+                    audit("UNSUPPORTED_TOOL", "Tool not found: ${step.tool}", step.description)
+                    throw UnsupportedOperationException(
+                        "I don't have a tool for '${step.tool}'. Supported tools: $supported"
+                    )
+                }
+                if (tool.riskLevel == RiskLevel.HIGH) {
+                    throw SecurityException("High-risk automation is disabled")
+                }
+
                 when (val result = tool.execute(step.args)) {
                     is ToolResult.Success -> logs += result.message
                     is ToolResult.Failure -> throw IllegalStateException(result.message)
@@ -155,18 +184,53 @@ class TaskExecutor(private val context: Context) {
             }
 
             AppState.setPhase(OperatorPhase.COMPLETED, "Task completed")
-            val output = logs.joinToString(" ")
-            db.dao().updateTask(TaskEntity(taskId, input, "COMPLETED", output))
-            db.dao().addMemory(MemoryEntity(key = "last_task", value = input))
-            output.ifBlank { "Task completed." }
+            val output = logs.joinToString(" ").ifBlank { "Task completed." }
+            db.dao().setTaskStatus(taskId, "COMPLETED", output)
+            extractKeyMemory(input)?.let { (key, value) ->
+                db.dao().addMemory(MemoryEntity(key = key, value = value))
+            }
+            output
         } catch (e: Throwable) {
             pendingActions.clear()
             val reason = e.message ?: e.javaClass.simpleName
             val aborted = reason.contains("abort", true) || AppState.operator.value.phase == OperatorPhase.ABORTED
             AppState.setPhase(if (aborted) OperatorPhase.ABORTED else OperatorPhase.ERROR, reason)
-            db.dao().updateTask(TaskEntity(taskId, input, if (aborted) "ABORTED" else "FAILED", reason))
-            db.dao().addSafety(SafetyEventEntity(type = if (aborted) "TASK_ABORTED" else "TASK_FAILED", reason = reason, packageName = null, action = input))
+            db.dao().setTaskStatus(taskId, if (aborted) "ABORTED" else "FAILED", reason)
+            db.dao().addSafety(
+                SafetyEventEntity(
+                    type = if (aborted) "TASK_ABORTED" else "TASK_FAILED",
+                    reason = reason,
+                    packageName = null,
+                    action = input
+                )
+            )
             "Task stopped safely: $reason"
+        }
+    }
+
+    private fun extractKeyMemory(input: String): Pair<String, String>? {
+        val normalized = input.trim()
+        return when {
+            normalized.contains("my name is", true) -> {
+                normalized.substringAfter("my name is", "").trim().takeIf { it.isNotBlank() }?.let {
+                    "user_name" to it.take(80)
+                }
+            }
+            normalized.contains("mera naam", true) -> {
+                normalized.substringAfter("mera naam", "").trim()
+                    .removePrefix("hai").trim().takeIf { it.isNotBlank() }?.let {
+                        "user_name" to it.take(80)
+                    }
+            }
+            normalized.contains("i like", true) -> {
+                normalized.substringAfter("i like", "").trim().takeIf { it.isNotBlank() }?.let {
+                    "preference" to it.take(120)
+                }
+            }
+            normalized.contains("mujhe", true) && normalized.contains("pasand", true) -> {
+                normalized.takeIf { it.length <= 180 }?.let { "preference" to it }
+            }
+            else -> null
         }
     }
 

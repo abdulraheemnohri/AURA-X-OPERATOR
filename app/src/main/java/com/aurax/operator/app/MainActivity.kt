@@ -11,7 +11,9 @@ import com.aurax.operator.core.security.SecurePrefs
 import com.aurax.operator.core.theme.AuraTheme
 import com.aurax.operator.core.theme.AuraThemeMode
 import com.aurax.operator.ui.navigation.AuraNavigation
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

@@ -1,72 +1,114 @@
 package com.aurax.operator.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.aurax.operator.agent.execution.TaskExecutor
-import kotlinx.coroutines.launch
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.aurax.operator.data.entities.MessageEntity
+import com.aurax.operator.ui.components.GlassCard
+import com.aurax.operator.ui.viewmodel.ChatViewModel
 
 @Composable
-fun ChatScreen() {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var text by remember { mutableStateOf("") }
-    var reply by remember { mutableStateOf("Ready. Give me a safe, supported command.") }
-    var running by remember { mutableStateOf(false) }
-    var showVoice by remember { mutableStateOf(false) }
+fun ChatScreen(viewModel: ChatViewModel = hiltViewModel()) {
+    val messages by viewModel.messages.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+    var input by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
 
-    if (showVoice) {
-        Surface(Modifier.fillMaxSize()) {
-            VoiceScreen(onBack = { showVoice = false })
-        }
-        return
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("AURA-X Operator", style = MaterialTheme.typography.headlineSmall)
-                Text("Local-first automation with visible safety controls.", style = MaterialTheme.typography.bodySmall)
+                Text("Local conversation history and guarded task execution.", style = MaterialTheme.typography.bodySmall)
             }
-            IconButton(onClick = { showVoice = true }) {
-                Icon(Icons.Default.Mic, contentDescription = "Voice mode")
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Operator response", style = MaterialTheme.typography.titleMedium)
-                Text(reply)
+            IconButton(onClick = { /* Voice is available from the voice screen. */ }) {
+                Icon(Icons.Default.Mic, contentDescription = "Voice")
             }
         }
-        Spacer(Modifier.weight(1f))
+
+        Spacer(Modifier.height(12.dp))
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            state = listState,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(bottom = 12.dp)
+        ) {
+            items(messages, key = { it.id }) { message ->
+                when (message.role) {
+                    "user" -> UserMessageBubble(message.content)
+                    "assistant" -> AiMessageBubble(message.content)
+                    else -> AiMessageBubble(message.content)
+                }
+            }
+            if (isLoading) item { LoadingIndicator() }
+        }
+
+        error?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(4.dp))
+        }
+
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextField(
-                value = text,
-                onValueChange = { text = it },
+                value = input,
+                onValueChange = { input = it },
                 modifier = Modifier.weight(1f),
-                enabled = !running,
-                placeholder = { Text("Try: open Chrome and search weather") }
+                enabled = !isLoading,
+                placeholder = { Text("Try: YouTube pe cats search karo") },
+                singleLine = true
             )
             Spacer(Modifier.width(8.dp))
-            Button(
-                enabled = text.isNotBlank() && !running,
+            IconButton(
+                enabled = !isLoading && input.isNotBlank(),
                 onClick = {
-                    val input = text.trim()
-                    text = ""
-                    running = true
-                    scope.launch {
-                        reply = TaskExecutor(context).execute(input)
-                        running = false
-                    }
+                    viewModel.sendMessage(input)
+                    input = ""
                 }
-            ) { Text(if (running) "Running…" else "Send") }
+            ) {
+                Icon(Icons.Default.Send, contentDescription = "Send")
+            }
         }
+    }
+}
+
+@Composable
+private fun UserMessageBubble(text: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        GlassCard(modifier = Modifier.widthIn(max = 330.dp), emphasized = true) {
+            Text(text)
+        }
+    }
+}
+
+@Composable
+private fun AiMessageBubble(text: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+        GlassCard(modifier = Modifier.widthIn(max = 360.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("AURA-X", style = MaterialTheme.typography.labelSmall)
+                Text(text)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoadingIndicator() {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+        AssistChip(onClick = {}, label = { Text("AURA-X is working…") })
     }
 }
