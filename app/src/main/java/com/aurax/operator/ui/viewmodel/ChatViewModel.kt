@@ -42,13 +42,13 @@ class ChatViewModel @Inject constructor(
             _isLoading.value = true
             try {
                 val userMessage = MessageEntity(conversationId = 0L, role = "user", content = input)
-                dao.addMessage(userMessage)
-                _messages.value = _messages.value + userMessage
+                val userId = dao.addMessage(userMessage)
+                _messages.value = _messages.value + userMessage.copy(id = userId)
 
                 val response = executor.execute(input)
                 val aiMessage = MessageEntity(conversationId = 0L, role = "assistant", content = response)
-                dao.addMessage(aiMessage)
-                _messages.value = _messages.value + aiMessage
+                val aiId = dao.addMessage(aiMessage)
+                _messages.value = _messages.value + aiMessage.copy(id = aiId)
             } catch (error: Throwable) {
                 _error.value = error.message ?: "Unable to process message"
             } finally {
