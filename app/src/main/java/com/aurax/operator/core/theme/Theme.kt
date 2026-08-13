@@ -1,5 +1,6 @@
 package com.aurax.operator.core.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -7,7 +8,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val AuraScheme = darkColorScheme(
+enum class AuraThemeMode {
+    SYSTEM, DARK, LIGHT;
+
+    companion object {
+        fun fromStored(value: String): AuraThemeMode =
+            entries.firstOrNull { it.name == value.uppercase() } ?: SYSTEM
+    }
+}
+
+private val AuraDarkScheme = darkColorScheme(
     primary = AuraColors.Primary,
     onPrimary = AuraColors.Background,
     primaryContainer = AuraColors.SurfaceElevated,
@@ -24,6 +34,45 @@ private val AuraScheme = darkColorScheme(
     onSurfaceVariant = AuraColors.TextSecondary,
     error = AuraColors.Error
 )
+
+private val AuraLightScheme = lightColorScheme(
+    primary = ColorTokens.LightPrimary,
+    onPrimary = ColorTokens.LightOnPrimary,
+    primaryContainer = ColorTokens.LightPrimaryContainer,
+    onPrimaryContainer = ColorTokens.LightOnPrimaryContainer,
+    secondary = ColorTokens.LightSecondary,
+    onSecondary = ColorTokens.LightOnSecondary,
+    secondaryContainer = ColorTokens.LightSecondaryContainer,
+    onSecondaryContainer = ColorTokens.LightOnSecondaryContainer,
+    tertiary = ColorTokens.LightTertiary,
+    onTertiary = ColorTokens.LightOnTertiary,
+    background = ColorTokens.LightBackground,
+    onBackground = ColorTokens.LightOnBackground,
+    surface = ColorTokens.LightSurface,
+    onSurface = ColorTokens.LightOnSurface,
+    surfaceVariant = ColorTokens.LightSurfaceVariant,
+    onSurfaceVariant = ColorTokens.LightOnSurfaceVariant,
+    error = AuraColors.Error
+)
+
+private object ColorTokens {
+    val LightPrimary = androidx.compose.ui.graphics.Color(0xFF4656C8)
+    val LightOnPrimary = androidx.compose.ui.graphics.Color.White
+    val LightPrimaryContainer = androidx.compose.ui.graphics.Color(0xFFDDE1FF)
+    val LightOnPrimaryContainer = androidx.compose.ui.graphics.Color(0xFF111A5A)
+    val LightSecondary = androidx.compose.ui.graphics.Color(0xFF006A61)
+    val LightOnSecondary = androidx.compose.ui.graphics.Color.White
+    val LightSecondaryContainer = androidx.compose.ui.graphics.Color(0xFF9CF2E7)
+    val LightOnSecondaryContainer = androidx.compose.ui.graphics.Color(0xFF00201D)
+    val LightTertiary = androidx.compose.ui.graphics.Color(0xFF9B405F)
+    val LightOnTertiary = androidx.compose.ui.graphics.Color.White
+    val LightBackground = androidx.compose.ui.graphics.Color(0xFFF8F8FC)
+    val LightOnBackground = androidx.compose.ui.graphics.Color(0xFF191A20)
+    val LightSurface = androidx.compose.ui.graphics.Color(0xFFF8F8FC)
+    val LightOnSurface = androidx.compose.ui.graphics.Color(0xFF191A20)
+    val LightSurfaceVariant = androidx.compose.ui.graphics.Color(0xFFE3E2EA)
+    val LightOnSurfaceVariant = androidx.compose.ui.graphics.Color(0xFF46464F)
+}
 
 private val AuraShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
@@ -44,9 +93,14 @@ private val AuraTypography = Typography(
 )
 
 @Composable
-fun AuraTheme(content: @Composable () -> Unit) {
+fun AuraTheme(mode: AuraThemeMode = AuraThemeMode.SYSTEM, content: @Composable () -> Unit) {
+    val dark = when (mode) {
+        AuraThemeMode.SYSTEM -> isSystemInDarkTheme()
+        AuraThemeMode.DARK -> true
+        AuraThemeMode.LIGHT -> false
+    }
     MaterialTheme(
-        colorScheme = AuraScheme,
+        colorScheme = if (dark) AuraDarkScheme else AuraLightScheme,
         typography = AuraTypography,
         shapes = AuraShapes,
         content = content

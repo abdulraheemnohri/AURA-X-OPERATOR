@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: ["main", "agent/**", "fix/**"]
+    branches: ["main", "agent/**", "fix/**", "feat/**"]
   pull_request:
     branches: ["main"]
 
@@ -35,26 +35,29 @@ jobs:
           adb version
           cmake --version
           echo "ANDROID_HOME=$ANDROID_HOME"
-      - name: Verify Android 13+ configuration
+      - name: Verify Android 9+ configuration
         run: |
           grep -q 'compileSdk = 34' app/build.gradle.kts
-          grep -q 'minSdk = 33' app/build.gradle.kts
+          grep -q 'minSdk = 28' app/build.gradle.kts
           grep -q 'targetSdk = 34' app/build.gradle.kts
           grep -q 'ndkVersion = "25.2.9519653"' app/build.gradle.kts
           grep -q 'arm64-v8a' app/build.gradle.kts
-      - name: Assemble Android 13+ debug APK
+      - name: Assemble Android 9+ debug APK
+        id: build_apk
         run: gradle --no-daemon --stacktrace assembleDebug
-      - name: Run unit tests
-        run: gradle --no-daemon --stacktrace testDebugUnitTest
       - name: Verify APK output
+        if: ${{ steps.build_apk.outcome == 'success' }}
         run: |
           test -f app/build/outputs/apk/debug/app-debug.apk
           ls -lh app/build/outputs/apk/debug/app-debug.apk
-      - name: Upload Android 13+ debug APK
-        if: ${{ success() }}
+      - name: Run unit tests
+        if: ${{ steps.build_apk.outcome == 'success' }}
+        run: gradle --no-daemon --stacktrace testDebugUnitTest
+      - name: Upload Android 9+ debug APK
+        if: ${{ steps.build_apk.outcome == 'success' }}
         uses: actions/upload-artifact@v5
         with:
-          name: aura-x-operator-android13-debug
+          name: aura-x-operator-android9-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14

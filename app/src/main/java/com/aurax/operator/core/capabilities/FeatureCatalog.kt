@@ -12,15 +12,17 @@ data class Capability(
 
 object FeatureCatalog {
     val all = listOf(
-        Capability("accessibility", "Accessibility Operator", "Read UI nodes and perform guarded actions.", CapabilityStatus.REQUIRES_PERMISSION),
+        Capability("accessibility", "Accessibility Operator", "Read UI nodes and perform guarded actions across the device after explicit enablement.", CapabilityStatus.REQUIRES_PERMISSION),
         Capability("screen_context", "Screen Understanding", "Extract visible text, clickable controls, sensitive fields and private browsing state.", CapabilityStatus.READY),
         Capability("abort", "Emergency Abort", "Volume Down, notification action and floating indicator stop automation.", CapabilityStatus.READY),
         Capability("policy", "Automation Policy", "Observe, suggest, confirm or low-risk automatic execution.", CapabilityStatus.READY),
         Capability("chrome", "Chrome Safe Automation", "Open/search/navigate Chrome while refusing sensitive flows.", CapabilityStatus.READY),
         Capability("youtube", "YouTube Safe Automation", "Search/play/navigation without likes, subscriptions, comments or ads.", CapabilityStatus.READY),
         Capability("system", "System Navigation", "Open installed applications and supported Android settings screens.", CapabilityStatus.READY),
+        Capability("notifications", "Notification Reader", "Optional user-granted in-memory notification summaries with protected-package filtering.", CapabilityStatus.REQUIRES_PERMISSION),
         Capability("audit", "Safety Audit Trail", "Persist task/action/safety events locally and export CSV.", CapabilityStatus.READY),
         Capability("model", "Local GGUF AI", "Import and run the configured local llama.cpp model when a compatible GGUF is installed.", CapabilityStatus.REQUIRES_MODEL),
+        Capability("model_planning", "Local AI Planning", "Use the local GGUF model for constrained plan proposals with deterministic fallback.", CapabilityStatus.REQUIRES_MODEL),
         Capability("vision", "Vision Understanding", "Screenshot capture is available; multimodal interpretation requires a compatible vision model.", CapabilityStatus.REQUIRES_MODEL),
         Capability("stt", "Whisper STT", "Native Whisper bridge is exposed; a Whisper model must be supplied in app-private storage.", CapabilityStatus.REQUIRES_MODEL),
         Capability("tts", "Piper TTS", "Piper integration point is exposed; a compatible voice model/runtime must be supplied.", CapabilityStatus.REQUIRES_MODEL),

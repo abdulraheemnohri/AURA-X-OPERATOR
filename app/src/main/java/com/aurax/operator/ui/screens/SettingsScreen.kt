@@ -25,6 +25,7 @@ import com.aurax.operator.core.capabilities.CapabilityStatus
 import com.aurax.operator.core.capabilities.FeatureCatalog
 import com.aurax.operator.core.security.PermissionCenter
 import com.aurax.operator.core.security.SecurePrefs
+import com.aurax.operator.core.theme.AuraThemeMode
 import com.aurax.operator.data.LogExporter
 import kotlinx.coroutines.launch
 
@@ -40,6 +41,19 @@ fun SettingsScreen() {
     val scope = rememberCoroutineScope()
     var center by remember { mutableStateOf(SettingsCenter.ROOT) }
     var policy by remember { mutableStateOf(prefs.policy) }
+    var biometric by remember { mutableStateOf(prefs.biometricRequired) }
+    var indicator by remember { mutableStateOf(prefs.floatingIndicatorEnabled) }
+    var incognito by remember { mutableStateOf(prefs.incognitoProtectionEnabled) }
+    var haptics by remember { mutableStateOf(prefs.hapticFeedbackEnabled) }
+    var voiceInterrupt by remember { mutableStateOf(prefs.voiceAutoInterruptEnabled) }
+    var countdown by remember { mutableIntStateOf(prefs.confirmationSeconds) }
+    var maxActions by remember { mutableIntStateOf(prefs.maxActionsPerTask) }
+    var maxTaskSeconds by remember { mutableIntStateOf(prefs.maxTaskSeconds) }
+    var temperature by remember { mutableFloatStateOf(prefs.modelTemperature) }
+    var maxTokens by remember { mutableIntStateOf(prefs.modelMaxTokens) }
+    var contextTokens by remember { mutableIntStateOf(prefs.modelContextTokens) }
+    var sttLanguage by remember { mutableStateOf(prefs.sttLanguage) }
+    var themeMode by remember { mutableStateOf(AuraThemeMode.fromStored(prefs.themeMode)) }
     var modelInstalled by remember { mutableStateOf(models.isInstalled()) }
     var message by remember { mutableStateOf("") }
     var refresh by remember { mutableIntStateOf(0) }
@@ -97,16 +111,15 @@ fun SettingsScreen() {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text("Control plane", style = MaterialTheme.typography.headlineMedium)
-            Text("Tune operator behavior, permissions, local AI and privacy from one place.", style = MaterialTheme.typography.bodyMedium)
+            Text("AURA-X Control Plane", style = MaterialTheme.typography.headlineMedium)
+            Text("Configure operator autonomy, safety, local models, voice and diagnostics. All settings are stored locally.", style = MaterialTheme.typography.bodyMedium)
         }
         item {
-            SettingsSection("Operator readiness", "Everything AURA-X needs before it can safely act") {
+            SettingsSection("Operator readiness", "Required capabilities before automation can safely act") {
                 StatusRow("Accessibility service", accessibility)
-                StatusRow("Floating indicator", overlay)
+                StatusRow("Floating overlay", overlay)
                 StatusRow("Notifications", notifications)
                 StatusRow("Microphone", microphone)
-                Spacer(Modifier.height(4.dp))
                 Button(onClick = {
                     val requested = buildList {
                         add(Manifest.permission.RECORD_AUDIO)
@@ -119,7 +132,7 @@ fun SettingsScreen() {
             }
         }
         item {
-            SettingsSection("Automation policy", "Choose how much autonomy the operator receives") {
+            SettingsSection("Automation policy", "The safety engine always overrides the selected autonomy level") {
                 listOf("OBSERVE_ONLY", "SUGGEST_ONLY", "CONFIRM_ACTIONS", "FULL_AUTO_LOW_RISK").forEach { value ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(selected = policy == value, onClick = { policy = value; prefs.policy = value })
@@ -148,29 +161,87 @@ fun SettingsScreen() {
             }
         }
         item {
-            SettingsSection("Local AI", "No cloud endpoint is required by the operator core") {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Memory, contentDescription = null)
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Primary GGUF")
-                        Text(if (modelInstalled) "Installed and ready for local inference" else "Not installed", style = MaterialTheme.typography.bodySmall)
+            SettingsSection("Safety controls", "Recommended defaults are enabled") {
+                SettingSwitch("Biometric operator unlock", "Require local biometric authentication before protected operator sessions.", biometric) { biometric = it; prefs.biometricRequired = it }
+                SettingSwitch("Floating operator indicator", "Show the always-visible green/orange/red automation state.", indicator) { indicator = it; prefs.floatingIndicatorEnabled = it }
+                SettingSwitch("Incognito protection", "Refuse automation and audit capture for detected private browsing sessions.", incognito) { incognito = it; prefs.incognitoProtectionEnabled = it }
+                SettingSwitch("Haptic feedback", "Provide local haptic confirmation for operator state changes.", haptics) { haptics = it; prefs.hapticFeedbackEnabled = it }
+                SettingSwitch("Voice auto-interrupt", "Stop speech output when the user starts speaking.", voiceInterrupt) { voiceInterrupt = it; prefs.voiceAutoInterruptEnabled = it }
+                Text("Confirmation countdown: ${countdown}s", style = MaterialTheme.typography.titleSmall)
+                Slider(value = countdown.toFloat(), onValueChange = { countdown = it.toInt().coerceIn(1, 10); prefs.confirmationSeconds = countdown }, valueRange = 1f..10f, steps = 8)
+                Text("Maximum actions per task: $maxActions", style = MaterialTheme.typography.titleSmall)
+                Slider(value = maxActions.toFloat(), onValueChange = { maxActions = (it.toInt() / 5 * 5).coerceIn(1, 200); prefs.maxActionsPerTask = maxActions }, valueRange = 5f..200f, steps = 38)
+                Text("Maximum task runtime: ${maxTaskSeconds}s", style = MaterialTheme.typography.titleSmall)
+                Slider(value = maxTaskSeconds.toFloat(), onValueChange = { maxTaskSeconds = (it.toInt() / 5 * 5).coerceIn(5, 900); prefs.maxTaskSeconds = maxTaskSeconds }, valueRange = 5f..900f, steps = 35)
+                Text("Medium/high-risk actions must remain visible and abortable. Runtime limits stop runaway plans even if a tool misbehaves.", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        item {
+            SettingsSection("Appearance", "Choose how the AURA-X interface is rendered") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AuraThemeMode.entries.forEach { mode ->
+                        FilterChip(
+                            selected = themeMode == mode,
+                            onClick = {
+                                themeMode = mode
+                                prefs.themeMode = mode.name
+                                message = "Theme saved. Restart AURA-X to apply it everywhere."
+                            },
+                            label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                        )
                     }
                 }
-                Text("Recommended family: Qwen 2.5 0.5B Instruct GGUF", style = MaterialTheme.typography.bodySmall)
-                Button(onClick = { picker.launch(arrayOf("application/octet-stream", "application/x-gguf", "*/*")) }, modifier = Modifier.fillMaxWidth()) { Text("Import GGUF model") }
+                Text("System follows Android appearance. Dark and Light force a fixed theme.", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        item {
+            SettingsSection("Local AI model", "Tune llama.cpp inference without a cloud endpoint") {
+                Text(if (modelInstalled) "Primary GGUF: installed" else "Primary GGUF: not installed", style = MaterialTheme.typography.titleSmall)
+                Text("Recommended: Qwen 2.5 0.5B Instruct GGUF Q4_K_M", style = MaterialTheme.typography.bodySmall)
+                Button(onClick = { picker.launch(arrayOf("application/octet-stream", "application/x-gguf", "*/*")) }, modifier = Modifier.fillMaxWidth()) { Text("Import / replace GGUF") }
+                if (modelInstalled) {
+                    OutlinedButton(onClick = {
+                        models.deletePrimaryModel()
+                        modelInstalled = false
+                        prefs.clearModelSelection()
+                        message = "Local GGUF model removed."
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Remove local GGUF") }
+                }
                 OutlinedButton(onClick = { center = SettingsCenter.MODELS }, modifier = Modifier.fillMaxWidth()) { Text("Open Model Center") }
+                Text("Temperature: ${"%.2f".format(temperature)}", style = MaterialTheme.typography.titleSmall)
+                Slider(value = temperature, onValueChange = { temperature = it; prefs.modelTemperature = it }, valueRange = 0f..1.5f, steps = 14)
+                Text("Max output tokens: $maxTokens", style = MaterialTheme.typography.titleSmall)
+                Slider(value = maxTokens.toFloat(), onValueChange = { maxTokens = (it.toInt() / 32 * 32).coerceIn(32, 2048); prefs.modelMaxTokens = maxTokens }, valueRange = 32f..2048f, steps = 62)
+                Text("Context tokens: $contextTokens", style = MaterialTheme.typography.titleSmall)
+                Slider(value = contextTokens.toFloat(), onValueChange = { contextTokens = (it.toInt() / 256 * 256).coerceIn(256, 4096); prefs.modelContextTokens = contextTokens }, valueRange = 256f..4096f, steps = 15)
+            }
+        }
+
+        item {
+            SettingsSection("Voice models", "Keep speech assets local and explicitly selected") {
+                Text("STT language", style = MaterialTheme.typography.titleSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("auto", "en", "ur", "hi").forEach { lang ->
+                        FilterChip(selected = sttLanguage == lang, onClick = { sttLanguage = lang; prefs.sttLanguage = lang }, label = { Text(lang.uppercase()) })
+                    }
+                }
+                Text(if (prefs.sttModelPath.isBlank()) "Whisper model: not selected" else "Whisper model: configured", style = MaterialTheme.typography.bodySmall)
+                Text(if (prefs.ttsModelPath.isBlank()) "Piper voice: not selected" else "Piper voice: configured", style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(onClick = { center = SettingsCenter.VOICE }, modifier = Modifier.fillMaxWidth()) { Text("Open Voice Center") }
             }
         }
         item {
             SettingsSection("Control centers", "Deep configuration and diagnostics") {
-                CenterButton("Safety Center", "Guardrails, blocked actions and abort state", Icons.Default.Security) { center = SettingsCenter.SAFETY }
+                CenterButton("Safety Center", "Guardrails, blocked actions and emergency stop", Icons.Default.Security) { center = SettingsCenter.SAFETY }
                 CenterButton("Privacy Center", "Local storage, audit trail and data controls", Icons.Default.Lock) { center = SettingsCenter.PRIVACY }
-                CenterButton("Diagnostics", "Build, permissions, service and runtime checks", Icons.Default.Build) { center = SettingsCenter.DIAGNOSTICS }
+                CenterButton("Voice Center", "Speech model status and local voice configuration", Icons.Default.Mic) { center = SettingsCenter.VOICE }
+                CenterButton("Diagnostics", "Permissions, services, model and runtime checks", Icons.Default.Build) { center = SettingsCenter.DIAGNOSTICS }
             }
         }
         item {
-            SettingsSection("Capability matrix", "A truthful view of what is ready on this device") {
+            SettingsSection("Capability matrix", "Truthful runtime status rather than placeholder feature claims") {
                 FeatureCatalog.all.forEach { feature ->
                     val label = when (feature.status) {
                         CapabilityStatus.READY -> "READY"
@@ -189,8 +260,8 @@ fun SettingsScreen() {
             }
         }
         item {
-            SettingsSection("Privacy & recovery", "Keep the operator auditable and recoverable") {
-                Text("Typed values are intentionally excluded from the operator audit log. Safety events and task metadata stay on-device.", style = MaterialTheme.typography.bodySmall)
+            SettingsSection("Privacy & recovery", "Auditable local operation") {
+                Text("Typed values are excluded from operator audit records. Safety events and task metadata remain on-device.", style = MaterialTheme.typography.bodySmall)
                 OutlinedButton(onClick = { exportLauncher.launch("aura-x-safety-${System.currentTimeMillis()}.csv") }, modifier = Modifier.fillMaxWidth()) { Text("Export Safety Logs") }
                 Button(onClick = {
                     val activity = context as? FragmentActivity ?: return@Button
@@ -200,7 +271,7 @@ fun SettingsScreen() {
                         override fun onAuthenticationError(errorCode: Int, errString: CharSequence) { message = "Operator unlock cancelled." }
                     })
                     prompt.authenticate(BiometricPrompt.PromptInfo.Builder().setTitle("Unlock AURA-X Operator").setSubtitle("Confirm before enabling deep device automation").setNegativeButtonText("Cancel").build())
-                }, modifier = Modifier.fillMaxWidth()) { Text("Biometric Operator Unlock") }
+                }, modifier = Modifier.fillMaxWidth()) { Text("Test Biometric Unlock") }
             }
         }
         if (message.isNotBlank()) item { Text(message, style = MaterialTheme.typography.bodySmall) }
@@ -208,7 +279,7 @@ fun SettingsScreen() {
 }
 
 @Composable
-private fun PreferenceSwitch(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+private fun SettingSwitch(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)

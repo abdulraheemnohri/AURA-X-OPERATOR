@@ -1,7 +1,6 @@
 package com.aurax.operator.core.security
 
 import android.Manifest
-import android.accessibilityservice.AccessibilityService
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -10,6 +9,7 @@ import android.os.Build
 import android.provider.Settings
 import androidx.core.content.ContextCompat
 import com.aurax.operator.operator.AuraAccessibilityService
+import com.aurax.operator.operator.AuraNotificationListenerService
 
 object PermissionCenter {
     fun hasMicrophone(context: Context): Boolean =
@@ -29,7 +29,15 @@ object PermissionCenter {
         return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
     }
 
+    fun isNotificationAccessEnabled(context: Context): Boolean {
+        val enabled = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners") ?: return false
+        val expected = ComponentName(context, AuraNotificationListenerService::class.java).flattenToString()
+        return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
+    }
+
     fun accessibilitySettingsIntent(): Intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+
+    fun notificationAccessSettingsIntent(): Intent = Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
 
     fun overlaySettingsIntent(context: Context): Intent =
         Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
