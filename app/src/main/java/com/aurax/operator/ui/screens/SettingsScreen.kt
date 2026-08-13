@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.aurax.operator.ui.screens
 
 import android.Manifest
@@ -31,7 +33,6 @@ private enum class SettingsCenter(val title: String) {
     ROOT("Settings"), SAFETY("Safety Center"), PRIVACY("Privacy Center"), MODELS("Model Center"), VOICE("Voice Center"), DIAGNOSTICS("Diagnostics")
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen() {
     val context = LocalContext.current
@@ -113,7 +114,6 @@ fun SettingsScreen() {
             Text("AURA-X Control Plane", style = MaterialTheme.typography.headlineMedium)
             Text("Configure operator autonomy, safety, local models, voice and diagnostics. All settings are stored locally.", style = MaterialTheme.typography.bodyMedium)
         }
-
         item {
             SettingsSection("Operator readiness", "Required capabilities before automation can safely act") {
                 StatusRow("Accessibility service", accessibility)
@@ -131,7 +131,6 @@ fun SettingsScreen() {
                 OutlinedButton(onClick = { context.startActivity(PermissionCenter.overlaySettingsIntent(context)) }, modifier = Modifier.fillMaxWidth()) { Text("Open Overlay Settings") }
             }
         }
-
         item {
             SettingsSection("Automation policy", "The safety engine always overrides the selected autonomy level") {
                 listOf("OBSERVE_ONLY", "SUGGEST_ONLY", "CONFIRM_ACTIONS", "FULL_AUTO_LOW_RISK").forEach { value ->
@@ -145,7 +144,22 @@ fun SettingsScreen() {
                 }
             }
         }
-
+        item {
+            SettingsSection("Operator safety controls", "Local guardrails and recovery defaults") {
+                PreferenceSwitch("Require biometric unlock", "Protect operator sessions before deep automation", prefs.requireBiometric) { prefs.requireBiometric = it }
+                PreferenceSwitch("Always show floating indicator", "Keep operator activity visibly disclosed", prefs.indicatorAlwaysVisible) { prefs.indicatorAlwaysVisible = it }
+                PreferenceSwitch("Block incognito/private browsing", "Do not inspect or automate private browser sessions", prefs.blockIncognito) { prefs.blockIncognito = it }
+                PreferenceSwitch("Haptic feedback", "Confirm important operator state changes", prefs.hapticFeedback) { prefs.hapticFeedback = it }
+                Text("Confirmation countdown: ${prefs.countdownSeconds}s", style = MaterialTheme.typography.titleSmall)
+                Slider(value = prefs.countdownSeconds.toFloat(), onValueChange = { prefs.countdownSeconds = it.toInt().coerceIn(1, 10) }, valueRange = 1f..10f, steps = 8)
+            }
+        }
+        item {
+            SettingsSection("Voice controls", "Configure local voice interaction behavior") {
+                PreferenceSwitch("Auto-interrupt while speaking", "Stop speech output when the user starts speaking", prefs.voiceAutoInterrupt) { prefs.voiceAutoInterrupt = it }
+                CenterButton("Voice Center", "Voice model, microphone and local speech status", Icons.Default.Mic) { center = SettingsCenter.VOICE }
+            }
+        }
         item {
             SettingsSection("Safety controls", "Recommended defaults are enabled") {
                 SettingSwitch("Biometric operator unlock", "Require local biometric authentication before protected operator sessions.", biometric) { biometric = it; prefs.biometricRequired = it }
@@ -218,7 +232,6 @@ fun SettingsScreen() {
                 OutlinedButton(onClick = { center = SettingsCenter.VOICE }, modifier = Modifier.fillMaxWidth()) { Text("Open Voice Center") }
             }
         }
-
         item {
             SettingsSection("Control centers", "Deep configuration and diagnostics") {
                 CenterButton("Safety Center", "Guardrails, blocked actions and emergency stop", Icons.Default.Security) { center = SettingsCenter.SAFETY }
@@ -227,7 +240,6 @@ fun SettingsScreen() {
                 CenterButton("Diagnostics", "Permissions, services, model and runtime checks", Icons.Default.Build) { center = SettingsCenter.DIAGNOSTICS }
             }
         }
-
         item {
             SettingsSection("Capability matrix", "Truthful runtime status rather than placeholder feature claims") {
                 FeatureCatalog.all.forEach { feature ->
@@ -247,7 +259,6 @@ fun SettingsScreen() {
                 }
             }
         }
-
         item {
             SettingsSection("Privacy & recovery", "Auditable local operation") {
                 Text("Typed values are excluded from operator audit records. Safety events and task metadata remain on-device.", style = MaterialTheme.typography.bodySmall)
@@ -263,7 +274,6 @@ fun SettingsScreen() {
                 }, modifier = Modifier.fillMaxWidth()) { Text("Test Biometric Unlock") }
             }
         }
-
         if (message.isNotBlank()) item { Text(message, style = MaterialTheme.typography.bodySmall) }
     }
 }
