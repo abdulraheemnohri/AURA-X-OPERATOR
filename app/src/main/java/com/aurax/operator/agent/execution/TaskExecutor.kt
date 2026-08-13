@@ -20,14 +20,14 @@ import com.aurax.operator.tools.chrome.ChromeTool
 import com.aurax.operator.tools.registry.RiskLevel
 import com.aurax.operator.tools.registry.ToolRegistry
 import com.aurax.operator.tools.youtube.YouTubeTool
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedInject
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 
 /** Executes only allow-listed, policy-checked tasks. All state remains local. */
-class TaskExecutor @AssistedInject constructor(
-    @Assisted private val context: Context,
+class TaskExecutor @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val db: AuraDatabase,
     private val planner: OperatorPlanner,
     private val localModelPlanner: LocalModelPlanner
