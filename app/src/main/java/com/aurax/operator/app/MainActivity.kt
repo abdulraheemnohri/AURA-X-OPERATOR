@@ -11,6 +11,8 @@ import com.aurax.operator.core.security.SecurePrefs
 import com.aurax.operator.core.theme.AuraTheme
 import com.aurax.operator.core.theme.AuraThemeMode
 import com.aurax.operator.ui.navigation.AuraNavigation
+import com.aurax.operator.ui.onboarding.OnboardingController
+import com.aurax.operator.ui.onboarding.OnboardingScreen
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -18,16 +20,9 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val themeMode = AuraThemeMode.fromStored(SecurePrefs(this).themeMode)
-        setContent {
-            AuraTheme(themeMode) {
-                Surface(Modifier.fillMaxSize()) { AuraNavigation() }
-            }
-        }
+        setContent { AuraTheme(themeMode) { Surface(Modifier.fillMaxSize()) {
+            if (OnboardingController(this).completed) AuraNavigation() else OnboardingScreen { recreate() }
+        } } }
     }
-
-    override fun onStop() {
-        super.onStop()
-        // UI leaving foreground must never leave an automation action running silently.
-        SafetyController.requestAbort("AURA-X UI moved to background")
-    }
+    override fun onStop() { super.onStop(); SafetyController.requestAbort("AURA-X UI moved to background") }
 }
