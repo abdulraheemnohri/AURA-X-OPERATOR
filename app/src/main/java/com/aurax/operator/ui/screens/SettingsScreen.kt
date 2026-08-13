@@ -147,8 +147,8 @@ fun SettingsScreen() {
         item {
             SettingsSection("Operator safety controls", "Local guardrails and recovery defaults") {
                 PreferenceSwitch("Require biometric unlock", "Protect operator sessions before deep automation", prefs.requireBiometric) { prefs.requireBiometric = it }
-                PreferenceSwitch("Always show floating indicator", "Keep operator activity visibly disclosed", prefs.indicatorAlwaysVisible) { prefs.indicatorAlwaysVisible = it }
-                PreferenceSwitch("Block incognito/private browsing", "Do not inspect or automate private browser sessions", prefs.blockIncognito) { prefs.blockIncognito = it }
+                PreferenceSwitch("Always show floating indicator", "Keep operator activity visibly disclosed", prefs.floatingIndicatorEnabled) { prefs.floatingIndicatorEnabled = it }
+                PreferenceSwitch("Block incognito/private browsing", "Do not inspect or automate private browser sessions", prefs.incognitoProtectionEnabled) { prefs.incognitoProtectionEnabled = it }
                 PreferenceSwitch("Haptic feedback", "Confirm important operator state changes", prefs.hapticFeedback) { prefs.hapticFeedback = it }
                 Text("Confirmation countdown: ${prefs.countdownSeconds}s", style = MaterialTheme.typography.titleSmall)
                 Slider(value = prefs.countdownSeconds.toFloat(), onValueChange = { prefs.countdownSeconds = it.toInt().coerceIn(1, 10) }, valueRange = 1f..10f, steps = 8)
@@ -156,7 +156,7 @@ fun SettingsScreen() {
         }
         item {
             SettingsSection("Voice controls", "Configure local voice interaction behavior") {
-                PreferenceSwitch("Auto-interrupt while speaking", "Stop speech output when the user starts speaking", prefs.voiceAutoInterrupt) { value -> prefs.voiceAutoInterrupt = value }
+                PreferenceSwitch("Auto-interrupt while speaking", "Stop speech output when the user starts speaking", prefs.voiceAutoInterruptEnabled) { value -> prefs.voiceAutoInterruptEnabled = value }
                 CenterButton("Voice Center", "Voice model, microphone and local speech status", Icons.Default.Mic) { center = SettingsCenter.VOICE }
             }
         }
