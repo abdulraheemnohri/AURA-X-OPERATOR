@@ -2,6 +2,7 @@ package com.aurax.operator.ui.screens
 
 import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -22,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.aurax.operator.core.app.AppState
 import com.aurax.operator.core.security.SecurePrefs
 import com.aurax.operator.voice.VoiceOutput
@@ -36,15 +38,20 @@ fun VoiceScreen(onBack: () -> Unit) {
     var listening by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("Hold to speak") }
     var recognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
+    var permissionGranted by remember {
+        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
+    }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) status = "Hold to speak"
-        else status = "Microphone permission is required"
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        permissionGranted = granted
+        status = if (granted) "Hold to speak" else "Microphone permission is required"
     }
 
     fun startListening() {
+        if (!permissionGranted) {
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             status = "Speech recognition is unavailable on this device"
             return
@@ -79,7 +86,6 @@ fun VoiceScreen(onBack: () -> Unit) {
             }
             override fun onEvent(eventType: Int, params: Bundle?) = Unit
         })
-
         val language = when (prefs.sttLanguage.lowercase(Locale.US)) {
             "ur" -> "ur-PK"
             "hi" -> "hi-IN"
@@ -102,10 +108,7 @@ fun VoiceScreen(onBack: () -> Unit) {
     }
 
     DisposableEffect(Unit) {
-        onDispose {
-            recognizer?.destroy()
-            voice.shutdown()
-        }
+        onDispose { recognizer?.destroy(); voice.shutdown() }
     }
 
     val pulse by rememberInfiniteTransition(label = "voice").animateFloat(
@@ -140,17 +143,20 @@ fun VoiceScreen(onBack: () -> Unit) {
                 }
             }
             if (!listening) {
-                Button(onClick = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }, modifier = Modifier.pointerInput(Unit) {
-                    detectTapGestures(onPress = {
-                        startListening()
-                        tryAwaitRelease()
-                        stopListening()
-                    })
-                }) {
-                    Text("Hold to Speak")
-                }
+                Button(
+                    onClick = { if (!permissionGranted) permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+                    modifier = Modifier.pointerInput(permissionGranted) {
+                        detectTapGestures(onPress = {
+                            startListening()
+                            if (permissionGranted) {
+                                tryAwaitRelease()
+                                stopListening()
+                            }
+                        })
+                    }
+                ) { Text(if (permissionGranted) "Hold to Speak" else "Grant Microphone") }
             } else {
-                Button(onClick = { stopListening() }) { Text("Release / Stop") }
+                Button(onClick = { stopListening() }) { Text("Stop Listening") }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(enabled = transcript.isNotBlank(), onClick = { voice.speak(transcript) }) { Text("Speak transcript") }
