@@ -49,7 +49,7 @@ class LocalRuntimeManager @Inject constructor(
             modelHub.markLoaded(modelId)
             loadedId = modelId
         }
-        Result.success(modelHub.get(modelId) ?: model)
+        return Result.success(modelHub.get(modelId) ?: model)
     }
 
     suspend fun unload() = mutex.withLock {
