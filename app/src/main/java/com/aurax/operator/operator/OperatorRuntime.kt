@@ -5,7 +5,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Process-wide safety state. Abort is monotonic until a new operator session begins. */
 enum class OperatorIndicatorState { OBSERVING, COUNTDOWN, ACTING, BLOCKED, ABORTED }
 
 data class CountdownState(val action: String, val remainingSeconds: Int)
@@ -35,6 +34,9 @@ object OperatorRuntime {
         _indicator.value = OperatorIndicatorState.BLOCKED
     }
 
+    /** Immediate process-wide emergency stop. Safe to call repeatedly from UI, voice or hardware handlers. */
+    fun emergencyStop() = abort()
+
     fun abort() {
         aborted = true
         _countdown.value = null
@@ -45,11 +47,11 @@ object OperatorRuntime {
         check(!aborted) { "AURA-X operation aborted by user" }
     }
 
-    /** Three-second visible safety window. Tapping the orb or pressing Volume Down aborts it. */
     suspend fun safetyCountdown(action: String, seconds: Int = 3): Boolean {
         if (aborted) return false
+        val safeSeconds = seconds.coerceIn(1, 10)
         _indicator.value = OperatorIndicatorState.COUNTDOWN
-        for (remaining in seconds downTo 1) {
+        for (remaining in safeSeconds downTo 1) {
             ensureNotAborted()
             _countdown.value = CountdownState(action, remaining)
             delay(1_000)
