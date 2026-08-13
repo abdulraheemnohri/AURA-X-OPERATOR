@@ -1,6 +1,8 @@
 package com.aurax.operator.ai.model
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import com.aurax.operator.data.database.AuraDao
 import com.aurax.operator.data.entities.ModelEntity
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -40,7 +42,7 @@ class ModelDownloadManager @Inject constructor(
 
         try {
             val response = connection.responseCode
-            require(response in setOf(HttpURLConnection.HTTP_OK, HttpURLConnection.HTTP_PARTIAL)) {
+            require(response == HttpURLConnection.HTTP_OK || response == HttpURLConnection.HTTP_PARTIAL) {
                 "Download failed with HTTP $response"
             }
             val append = start > 0 && response == HttpURLConnection.HTTP_PARTIAL
@@ -69,9 +71,7 @@ class ModelDownloadManager @Inject constructor(
         require(partial.length() > 0L) { "Downloaded file is empty" }
         if (model.sha256.isNotBlank()) {
             val actual = sha256(partial)
-            require(actual.equals(model.sha256, ignoreCase = true)) {
-                "SHA-256 verification failed"
-            }
+            require(actual.equals(model.sha256, ignoreCase = true)) { "SHA-256 verification failed" }
         }
 
         if (destination.exists()) destination.delete()
@@ -105,5 +105,10 @@ class ModelDownloadManager @Inject constructor(
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
-    private fun isWifiConnected(): Boolean = true
+    private fun isWifiConnected(): Boolean {
+        val manager = context.getSystemService(ConnectivityManager::class.java) ?: return false
+        val network = manager.activeNetwork ?: return false
+        val capabilities = manager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+    }
 }
