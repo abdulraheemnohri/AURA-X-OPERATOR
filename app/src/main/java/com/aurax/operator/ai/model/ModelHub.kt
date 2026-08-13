@@ -18,6 +18,8 @@ class ModelHub @Inject constructor(
 ) {
     val models: Flow<List<ModelEntity>> = dao.observeModels()
 
+    suspend fun get(id: String): ModelEntity? = dao.getModel(id)
+
     suspend fun seedBuiltIns() {
         for (model in BuiltInModels.all) {
             if (dao.getModel(model.id) == null) dao.addModel(model)
@@ -82,6 +84,7 @@ class ModelHub @Inject constructor(
     suspend fun remove(id: String) {
         val model = dao.getModel(id) ?: return
         require(!model.isBuiltIn) { "Built-in models cannot be removed" }
+        require(!model.isLoaded) { "Unload the model before deleting it" }
         model.localPath?.let { File(it).delete() }
         dao.deleteModel(model)
     }
