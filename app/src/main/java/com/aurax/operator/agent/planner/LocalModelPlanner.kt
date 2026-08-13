@@ -1,32 +1,34 @@
 package com.aurax.operator.agent.planner
 
-import android.content.Context
 import com.aurax.operator.ai.inference.GenerationRequest
-import com.aurax.operator.ai.runtime.LlamaCppRuntime
+import com.aurax.operator.ai.runtime.LocalRuntimeManager
 import com.aurax.operator.core.security.SecurePrefs
 import com.aurax.operator.operator.AccessibilityGuardrails
-import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.android.scopes.ViewModelScoped
 import javax.inject.Inject
 import org.json.JSONArray
 
-/** Optional local planner constrained to the same allow-listed tools as the deterministic planner. */
-class LocalModelPlanner @Inject constructor(@ApplicationContext context: Context) {
-    private val appContext = context.applicationContext
-    private val runtime = LlamaCppRuntime(appContext)
-    private val prefs = SecurePrefs(appContext)
-
+/** Local planner backed by the selected Model Hub runtime and constrained to the same allow-listed tools. */
+class LocalModelPlanner @Inject constructor(
+    private val runtime: LocalRuntimeManager,
+    private val prefs: SecurePrefs
+) {
     suspend fun plan(input: String, memoryContext: String = ""): List<PlanStep>? {
-        if (!runtime.isReady()) return null
-        val raw = runCatching {
-            runtime.generate(
-                GenerationRequest(
-                    prompt = buildPrompt(input, memoryContext),
-                    maxTokens = prefs.modelMaxTokens.coerceAtMost(1024),
-                    temperature = prefs.modelTemperature.coerceAtMost(0.4f),
-                    contextTokens = prefs.modelContextTokens
-                )
+        if (input.isBlank()) return null
+
+        if (runtime.loadedModelId() == null) {
+            runtime.loadBestAvailable().getOrNull() ?: return null
+        }
+
+        val raw = runtime.generate(
+            GenerationRequest(
+                prompt = buildPrompt(input, memoryContext),
+                maxTokens = prefs.modelMaxTokens.coerceAtMost(1024),
+                temperature = prefs.modelTemperature.coerceAtMost(0.4f),
+                contextTokens = prefs.modelContextTokens
             )
-        }.getOrNull() ?: return null
+        ).getOrNull() ?: return null
+
         return parse(raw)
     }
 
