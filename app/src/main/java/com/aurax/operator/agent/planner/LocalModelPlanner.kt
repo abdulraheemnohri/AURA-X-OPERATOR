@@ -5,10 +5,12 @@ import com.aurax.operator.ai.inference.GenerationRequest
 import com.aurax.operator.ai.runtime.LlamaCppRuntime
 import com.aurax.operator.core.security.SecurePrefs
 import com.aurax.operator.operator.AccessibilityGuardrails
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import org.json.JSONArray
 
 /** Optional local planner constrained to the same allow-listed tools as the deterministic planner. */
-class LocalModelPlanner(context: Context) {
+class LocalModelPlanner @Inject constructor(@ApplicationContext context: Context) {
     private val appContext = context.applicationContext
     private val runtime = LlamaCppRuntime(appContext)
     private val prefs = SecurePrefs(appContext)
