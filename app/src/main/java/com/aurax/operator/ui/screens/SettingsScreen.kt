@@ -146,17 +146,17 @@ fun SettingsScreen() {
         }
         item {
             SettingsSection("Operator safety controls", "Local guardrails and recovery defaults") {
-                PreferenceSwitch("Require biometric unlock", "Protect operator sessions before deep automation", prefs.requireBiometric) { prefs.requireBiometric = it }
-                PreferenceSwitch("Always show floating indicator", "Keep operator activity visibly disclosed", prefs.indicatorAlwaysVisible) { prefs.indicatorAlwaysVisible = it }
-                PreferenceSwitch("Block incognito/private browsing", "Do not inspect or automate private browser sessions", prefs.blockIncognito) { prefs.blockIncognito = it }
-                PreferenceSwitch("Haptic feedback", "Confirm important operator state changes", prefs.hapticFeedback) { prefs.hapticFeedback = it }
-                Text("Confirmation countdown: ${prefs.countdownSeconds}s", style = MaterialTheme.typography.titleSmall)
-                Slider(value = prefs.countdownSeconds.toFloat(), onValueChange = { prefs.countdownSeconds = it.toInt().coerceIn(1, 10) }, valueRange = 1f..10f, steps = 8)
+                PreferenceSwitch("Require biometric unlock", "Protect operator sessions before deep automation", prefs.biometricRequired) { prefs.biometricRequired = it }
+                PreferenceSwitch("Always show floating indicator", "Keep operator activity visibly disclosed", prefs.floatingIndicatorEnabled) { prefs.floatingIndicatorEnabled = it }
+                PreferenceSwitch("Block incognito/private browsing", "Do not inspect or automate private browser sessions", prefs.incognitoProtectionEnabled) { prefs.incognitoProtectionEnabled = it }
+                PreferenceSwitch("Haptic feedback", "Confirm important operator state changes", prefs.hapticFeedbackEnabled) { prefs.hapticFeedbackEnabled = it }
+                Text("Confirmation countdown: ${prefs.confirmationSeconds}s", style = MaterialTheme.typography.titleSmall)
+                Slider(value = prefs.confirmationSeconds.toFloat(), onValueChange = { prefs.confirmationSeconds = it.toInt().coerceIn(1, 10) }, valueRange = 1f..10f, steps = 8)
             }
         }
         item {
             SettingsSection("Voice controls", "Configure local voice interaction behavior") {
-                PreferenceSwitch("Auto-interrupt while speaking", "Stop speech output when the user starts speaking", prefs.voiceAutoInterrupt) { prefs.voiceAutoInterrupt = it }
+                PreferenceSwitch("Auto-interrupt while speaking", "Stop speech output when the user starts speaking", prefs.voiceAutoInterruptEnabled) { value -> prefs.voiceAutoInterruptEnabled = value }
                 CenterButton("Voice Center", "Voice model, microphone and local speech status", Icons.Default.Mic) { center = SettingsCenter.VOICE }
             }
         }
@@ -170,9 +170,9 @@ fun SettingsScreen() {
                 Text("Confirmation countdown: ${countdown}s", style = MaterialTheme.typography.titleSmall)
                 Slider(value = countdown.toFloat(), onValueChange = { countdown = it.toInt().coerceIn(1, 10); prefs.confirmationSeconds = countdown }, valueRange = 1f..10f, steps = 8)
                 Text("Maximum actions per task: $maxActions", style = MaterialTheme.typography.titleSmall)
-                Slider(value = maxActions.toFloat(), onValueChange = { maxActions = (it.toInt() / 5 * 5).coerceIn(1, 200); prefs.maxActionsPerTask = maxActions }, valueRange = 5f..200f, steps = 38)
+                Slider(value = maxActions.toFloat(), onValueChange = { maxActions = (it.toInt() / 5 * 5).coerceIn(1, 200); prefs.maxActionsPerTask = maxActions }, valueRange = 5f..200f, steps = 39)
                 Text("Maximum task runtime: ${maxTaskSeconds}s", style = MaterialTheme.typography.titleSmall)
-                Slider(value = maxTaskSeconds.toFloat(), onValueChange = { maxTaskSeconds = (it.toInt() / 5 * 5).coerceIn(5, 900); prefs.maxTaskSeconds = maxTaskSeconds }, valueRange = 5f..900f, steps = 35)
+                Slider(value = maxTaskSeconds.toFloat(), onValueChange = { maxTaskSeconds = (it.toInt() / 5 * 5).coerceIn(5, 900); prefs.maxTaskSeconds = maxTaskSeconds }, valueRange = 5f..900f, steps = 179)
                 Text("Medium/high-risk actions must remain visible and abortable. Runtime limits stop runaway plans even if a tool misbehaves.", style = MaterialTheme.typography.bodySmall)
             }
         }
@@ -215,7 +215,7 @@ fun SettingsScreen() {
                 Text("Max output tokens: $maxTokens", style = MaterialTheme.typography.titleSmall)
                 Slider(value = maxTokens.toFloat(), onValueChange = { maxTokens = (it.toInt() / 32 * 32).coerceIn(32, 2048); prefs.modelMaxTokens = maxTokens }, valueRange = 32f..2048f, steps = 62)
                 Text("Context tokens: $contextTokens", style = MaterialTheme.typography.titleSmall)
-                Slider(value = contextTokens.toFloat(), onValueChange = { contextTokens = (it.toInt() / 256 * 256).coerceIn(256, 4096); prefs.modelContextTokens = contextTokens }, valueRange = 256f..4096f, steps = 15)
+                Slider(value = contextTokens.toFloat(), onValueChange = { contextTokens = (it.toInt() / 256 * 256).coerceIn(256, 4096); prefs.modelContextTokens = contextTokens }, valueRange = 256f..4096f, steps = 14)
             }
         }
 
@@ -297,6 +297,17 @@ private fun SettingsSection(title: String, subtitle: String, content: @Composabl
             Text(subtitle, style = MaterialTheme.typography.bodySmall)
             content()
         })
+    }
+}
+
+@Composable
+private fun PreferenceSwitch(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

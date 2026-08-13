@@ -32,6 +32,14 @@ class OperatorPlanner @Inject constructor() {
             return step("Search Chrome for ${romanChrome.groupValues[1]}", "chrome_automation", "query" to romanChrome.groupValues[1])
         }
 
+        val openPackage = Regex(
+            "(?:open|launch)\\s+package\\s+([A-Za-z0-9_.]+)\\b",
+            RegexOption.IGNORE_CASE
+        ).find(q)
+        if (openPackage != null) {
+            return step("Open ${openPackage.groupValues[1]}", "android_open", "package" to openPackage.groupValues[1])
+        }
+
         val open = Regex(
             "(?:open|launch|start|kholo|khol do|chalao)\\s+(?:app\\s+)?(.+)",
             RegexOption.IGNORE_CASE
@@ -42,14 +50,6 @@ class OperatorPlanner @Inject constructor() {
         if (open != null) {
             val target = resolveAppName(open.groupValues[1].trim())
             return step("Open $target", "android_open", "package" to target)
-        }
-
-        val openPackage = Regex(
-            "(?:open|launch) package ([A-Za-z0-9_.]+)",
-            RegexOption.IGNORE_CASE
-        ).find(q)
-        if (openPackage != null) {
-            return step("Open ${openPackage.groupValues[1]}", "android_open", "package" to openPackage.groupValues[1])
         }
 
         if (q.contains("play first", true) && q.contains("youtube", true)) {
