@@ -3,6 +3,7 @@ package com.aurax.operator.performance
 import com.aurax.operator.ai.model.AIModelRuntime
 import com.aurax.operator.ai.model.ModelPreset
 
+/** Applies a bounded preset to any runtime. */
 /** Applies a safe preset to any runtime. Backends may override tuning hooks when supported. */
 object RuntimeTuning {
     fun applyPreset(runtime: AIModelRuntime, preset: ModelPreset) {

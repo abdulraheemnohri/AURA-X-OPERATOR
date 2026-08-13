@@ -48,6 +48,7 @@ class OnboardingController(context: Context) {
         completed = true
     }
 
+    fun reset() = prefs.edit().clear().apply()
     fun reset() {
         prefs.edit().clear().apply()
     }
