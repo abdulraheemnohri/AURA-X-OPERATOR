@@ -9,7 +9,8 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun OnboardingScreen(onComplete: () -> Unit) {
-    val controller = remember { OnboardingController(LocalContext.current) }
+    val context = LocalContext.current
+    val controller = remember { OnboardingController(context) }
     var step by remember { mutableStateOf(controller.step) }
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("AURA-X Setup", style = MaterialTheme.typography.headlineLarge)
