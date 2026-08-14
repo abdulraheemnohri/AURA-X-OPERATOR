@@ -6,6 +6,7 @@ import com.aurax.operator.data.database.AuraDao
 import com.aurax.operator.data.entities.ModelEntity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
@@ -24,7 +25,7 @@ class ModelHub @Inject constructor(
         .asSequence()
         .filter { it.status == "READY" && it.format == "GGUF" }
         .filter { !it.localPath.isNullOrBlank() && File(it.localPath!!).isFile }
-        .filter { it.category.equals("LLM", ignoreCase = true) || it.category.equals("CUSTOM", ignoreCase = true) }
+        .filter { it.category.equals("LLM", true) || it.category.equals("CUSTOM", true) }
         .sortedWith(compareByDescending<ModelEntity> { it.benchmarkTokensPerSec ?: 0f }.thenByDescending { it.lastUsed }.thenBy { it.sizeBytes })
         .firstOrNull()
 
@@ -32,7 +33,7 @@ class ModelHub @Inject constructor(
         for (model in BuiltInModels.all) if (dao.getModel(model.id) == null) dao.addModel(model)
     }
 
-    /** Registers a public Hub asset so the existing resumable download pipeline can install it. */
+    /** Registers a public Hub asset. IDs are filesystem-safe because WorkManager uses them in filenames. */
     suspend fun registerHubFile(repo: HuggingFaceModel, file: HuggingFaceFile): ModelEntity {
         val format = when {
             file.path.endsWith(".gguf", true) -> "GGUF"
@@ -47,14 +48,14 @@ class ModelHub @Inject constructor(
             repo.pipelineTag.contains("image", true) || repo.pipelineTag.contains("vision", true) -> "VISION"
             else -> "LLM"
         }
-        val id = "hf:${repo.id}:${file.path}".lowercase()
+        val id = stableHubId(repo.id, file.path)
         val entity = ModelEntity(
             id = id,
-            name = file.path.substringAfterLast('/'),
+            name = file.path.substringAfterLast('/').safeModelFileName(),
             displayName = "${repo.id} · ${file.path.substringAfterLast('/')}",
             category = category,
             format = format,
-            quantization = file.path.substringAfterLast('.', "").uppercase(),
+            quantization = extractQuantization(file.path),
             sourceUrl = file.downloadUrl,
             sha256 = file.sha256,
             sizeBytes = file.sizeBytes,
@@ -73,9 +74,12 @@ class ModelHub @Inject constructor(
         require(file.length() > 0L) { "Model file is empty" }
         require(metadata.format in setOf("GGUF", "ONNX", "TFLITE", "SAFETENSORS")) { "Unsupported model format: ${metadata.format}" }
         require(availableStorageBytes() > file.length()) { "Not enough free storage" }
-        val destination = File(modelDirectory(), file.name).also { it.parentFile?.mkdirs() }
+        val destination = File(modelDirectory(), file.name.safeModelFileName()).also { it.parentFile?.mkdirs() }
         file.copyTo(destination, overwrite = true)
-        val hash = ModelStatus.validateFile(destination).sha256 ?: ""
+        val hash = sha256(destination)
+        if (metadata.format == "GGUF") {
+            require(ModelStatus.validateFile(destination).isValid) { "Imported GGUF failed signature/integrity validation" }
+        }
         val entity = ModelEntity(
             id = "imported:${destination.name.lowercase()}", name = destination.name,
             displayName = metadata.displayName.ifBlank { destination.nameWithoutExtension }, category = metadata.category,
@@ -115,6 +119,35 @@ class ModelHub @Inject constructor(
 
     fun availableStorageBytes(): Long = StatFs(context.filesDir.absolutePath).availableBytes
     private fun modelDirectory(): File = File(context.filesDir, "models").apply { mkdirs() }
+
+    private fun stableHubId(repoId: String, path: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest("$repoId\n$path".toByteArray())
+            .joinToString("") { "%02x".format(it) }
+        return "hf_${digest.take(40)}"
+    }
+
+    private fun extractQuantization(path: String): String {
+        val stem = path.substringAfterLast('/').substringBeforeLast('.', "")
+        val match = Regex("(?i)(Q[0-9](?:_[A-Z0-9]+)+|IQ[0-9]_[A-Z0-9]+)").find(stem)
+        return match?.value?.uppercase() ?: ""
+    }
+
+    private fun String.safeModelFileName(): String =
+        substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "model.bin" }.take(180)
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(1024 * 1024)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                if (count > 0) digest.update(buffer, 0, count)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
 }
 
 data class ImportedModelMetadata(

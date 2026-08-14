@@ -18,7 +18,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -39,14 +41,22 @@ class HuggingFaceHubViewModel @Inject constructor(
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
     private val _message = MutableStateFlow("")
     val message: StateFlow<String> = _message.asStateFlow()
+    private val _wifiOnly = MutableStateFlow(false)
+    val wifiOnly: StateFlow<Boolean> = _wifiOnly.asStateFlow()
+    val localModels: StateFlow<List<ModelEntity>> = hub.models.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList()
+    )
+
+    init { search() }
 
     fun setQuery(value: String) { _query.value = value }
+    fun setWifiOnly(value: Boolean) { _wifiOnly.value = value }
 
     fun search() {
         viewModelScope.launch {
             _busy.value = true
             _message.value = ""
-            runCatching { client.searchModels(_query.value) }
+            runCatching { client.searchModels(_query.value.ifBlank { "GGUF" }) }
                 .onSuccess { _models.value = it }
                 .onFailure { _message.value = it.message ?: "Hugging Face search failed" }
             _busy.value = false
@@ -56,6 +66,7 @@ class HuggingFaceHubViewModel @Inject constructor(
     fun openRepository(model: HuggingFaceModel) {
         viewModelScope.launch {
             _busy.value = true
+            _message.value = ""
             _selectedRepo.value = model.id
             runCatching { client.listFiles(model.id) }
                 .onSuccess { _files.value = it }
@@ -64,22 +75,73 @@ class HuggingFaceHubViewModel @Inject constructor(
         }
     }
 
-    fun download(repo: HuggingFaceModel, file: HuggingFaceFile, wifiOnly: Boolean) {
+    fun closeRepository() {
+        _selectedRepo.value = null
+        _files.value = emptyList()
+    }
+
+    fun download(repo: HuggingFaceModel, file: HuggingFaceFile) {
         viewModelScope.launch {
             runCatching {
-                val entity: ModelEntity = hub.registerHubFile(repo, file)
-                val constraints = Constraints.Builder()
-                    .setRequiredNetworkType(if (wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
-                    .build()
-                val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
-                    .setConstraints(constraints)
-                    .setInputData(Data.Builder().putString(ModelDownloadWorker.KEY_MODEL_ID, entity.id).putBoolean(ModelDownloadWorker.KEY_WIFI_ONLY, wifiOnly).build())
-                    .build()
-                workManager.enqueueUniqueWork("model-download:${entity.id}", ExistingWorkPolicy.REPLACE, request)
+                val entity = hub.registerHubFile(repo, file)
+                enqueueDownload(entity)
                 _message.value = "Download queued: ${file.path}"
             }.onFailure { _message.value = it.message ?: "Unable to queue download" }
         }
     }
 
-    fun cancel(modelId: String) { workManager.cancelUniqueWork("model-download:$modelId") }
+    fun downloadLocal(modelId: String) {
+        viewModelScope.launch {
+            runCatching {
+                val model = hub.get(modelId) ?: error("Model not found")
+                require(model.sourceUrl.isNotBlank()) { "This model has no downloadable asset" }
+                enqueueDownload(model)
+                _message.value = "Main model download queued."
+            }.onFailure { _message.value = it.message ?: "Unable to queue model download" }
+        }
+    }
+
+    private fun enqueueDownload(entity: ModelEntity) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(if (_wifiOnly.value) NetworkType.UNMETERED else NetworkType.CONNECTED)
+            .build()
+        val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
+            .setConstraints(constraints)
+            .addTag("model-download")
+            .setInputData(Data.Builder()
+                .putString(ModelDownloadWorker.KEY_MODEL_ID, entity.id)
+                .putBoolean(ModelDownloadWorker.KEY_WIFI_ONLY, _wifiOnly.value)
+                .build())
+            .build()
+        workManager.enqueueUniqueWork("model-download:${entity.id}", ExistingWorkPolicy.REPLACE, request)
+    }
+
+    fun cancel(modelId: String) {
+        workManager.cancelUniqueWork("model-download:$modelId")
+        _message.value = "Download cancelled. A partial file may remain and will resume on retry."
+    }
+
+    fun load(modelId: String) {
+        viewModelScope.launch {
+            runCatching { hub.markLoaded(modelId) }
+                .onSuccess { _message.value = "Model loaded for local inference." }
+                .onFailure { _message.value = it.message ?: "Unable to load model" }
+        }
+    }
+
+    fun unload(modelId: String) {
+        viewModelScope.launch {
+            runCatching { hub.markUnloaded(modelId) }
+                .onSuccess { _message.value = "Model unloaded." }
+                .onFailure { _message.value = it.message ?: "Unable to unload model" }
+        }
+    }
+
+    fun remove(modelId: String) {
+        viewModelScope.launch {
+            runCatching { hub.remove(modelId) }
+                .onSuccess { _message.value = "Model removed from local registry and storage." }
+                .onFailure { _message.value = it.message ?: "Unable to remove model" }
+        }
+    }
 }
