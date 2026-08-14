@@ -15,7 +15,8 @@ import kotlinx.coroutines.flow.first
 @Singleton
 class ModelHub @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val dao: AuraDao
+    private val dao: AuraDao,
+    private val compatibilityChecker: ModelCompatibilityChecker
 ) {
     val models: Flow<List<ModelEntity>> = dao.observeModels()
 
@@ -97,6 +98,8 @@ class ModelHub @Inject constructor(
         val selected = all.firstOrNull { it.id == id } ?: return null
         require(selected.status == "READY") { "Model is not ready" }
         require(!selected.localPath.isNullOrBlank() && File(selected.localPath!!).isFile) { "Model file is not installed" }
+        val compatibility = compatibilityChecker.check(selected)
+        require(compatibility.compatible) { compatibility.reason ?: "Model is not compatible with this device" }
         all.filter { it.isLoaded && it.id != id }.forEach { dao.updateModel(it.copy(isLoaded = false)) }
         val loaded = selected.copy(isLoaded = true, lastUsed = System.currentTimeMillis())
         dao.updateModel(loaded)
