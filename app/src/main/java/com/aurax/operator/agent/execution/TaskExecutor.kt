@@ -98,14 +98,15 @@ class TaskExecutor @Inject constructor(
                     AppState.setPhase(OperatorPhase.CONFIRMING, "Confirm: ${step.description}")
                     audit("CONFIRMATION_REQUIRED", risk.name, step.description)
                     pendingActions.set(PendingActionStore.PendingAction(taskId, step.description, packageName))
-                    OperatorSafety.beginConfirmation(policyRuntime.confirmationSeconds())
-                    val approved = withTimeoutOrNull(policyRuntime.maxTaskSeconds() * 1_000L) {
+                    val confirmationSeconds = policyRuntime.confirmationSeconds().coerceIn(1, 10)
+                    OperatorSafety.beginConfirmation(confirmationSeconds)
+                    val approved = withTimeoutOrNull((confirmationSeconds + 1) * 1_000L) {
                         while (AppState.operator.value.phase == OperatorPhase.CONFIRMING && !AppState.operator.value.abortRequested) delay(100)
                         AppState.operator.value.phase == OperatorPhase.EXECUTING
                     } ?: false
                     if (!approved) {
                         pendingActions.clear()
-                        audit("ACTION_ABORTED", "User did not confirm", step.description)
+                        audit("ACTION_ABORTED", "User did not confirm within the confirmation window", step.description)
                         throw SecurityException("Action not confirmed")
                     }
                 }
