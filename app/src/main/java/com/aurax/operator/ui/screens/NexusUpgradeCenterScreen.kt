@@ -111,7 +111,7 @@ fun NexusUpgradeCenterScreen(context: Context) {
                 Button(onClick = {
                     scope.launch {
                         val snapshot = withContext(Dispatchers.IO) { AnalyticsEngine(AuraDatabase.get(context).dao()).snapshot() }
-                        analytics = "Tasks ${snapshot.taskCount} · Success ${(snapshot.taskSuccessRate * 100).toInt()}% · Memories ${snapshot.memoryCount} · Safety ${snapshot.safetyEventCount} · Models ${snapshot.readyModelCount}"
+                        analytics = "Tasks ${snapshot.tasks} · Completed ${snapshot.completed} · Failed ${snapshot.failed} · Success ${(snapshot.successRate * 100).toInt()}% · Memories ${snapshot.memories} · Safety ${snapshot.safetyEvents}"
                     }
                 }) { Text("Refresh analytics") }
                 Text(analytics, style = MaterialTheme.typography.bodySmall)
