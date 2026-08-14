@@ -13,7 +13,7 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 import org.json.JSONObject
 
-/** Encrypted export container for conversations, memories, safety events, model metadata and RAG index. */
+/** Encrypted export container for local operational data and settings. */
 class BackupManager(private val context: Context) {
     private val db = AuraDatabase.get(context)
 
@@ -24,7 +24,7 @@ class BackupManager(private val context: Context) {
             .put("version", 1)
             .put("createdAt", System.currentTimeMillis())
             .put("memories", dao.memories().map { JSONObject().put("key", it.key).put("value", it.value) })
-            .put("safetyEvents", dao.safetyEvents().map { JSONObject().put("timestamp", it.timestamp).put("type", it.type).put("detail", it.detail) })
+            .put("safetyEvents", dao.safetyEvents().map { JSONObject().put("timestamp", it.timestamp).put("type", it.type).put("reason", it.reason).put("packageName", it.packageName).put("action", it.action) })
             .put("settings", JSONObject(context.getSharedPreferences("aura_settings_v3", Context.MODE_PRIVATE).all))
         val plain = payload.toString().toByteArray(Charsets.UTF_8)
         val salt = MessageDigest.getInstance("SHA-256").digest(("AURA-X:" + context.packageName).toByteArray())
@@ -41,6 +41,7 @@ class BackupManager(private val context: Context) {
         return file
     }
 
+    /** Stages the encrypted archive for a future safe restore transaction. */
     fun stageRestore(file: File, password: String): Result<File> = runCatching {
         require(file.exists()) { "Backup file not found." }
         require(password.length >= 8) { "Backup password must be at least 8 characters." }
