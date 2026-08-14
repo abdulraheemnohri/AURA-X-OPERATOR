@@ -6,7 +6,7 @@ This audit covers the Android application, local model lifecycle, Hugging Face d
 
 ## Verified areas
 
-- Android 9+ configuration: `minSdk 28`, `compileSdk 34`, `targetSdk 34`.
+- Android 12+ configuration: `minSdk 31`, `compileSdk 34`, `targetSdk 34`.
 - Java/Kotlin target: JDK 17.
 - Native build: CMake + NDK 25.2.9519653, arm64-v8a.
 - Hilt, Room, WorkManager and Compose are present.
@@ -22,12 +22,12 @@ This audit covers the Android application, local model lifecycle, Hugging Face d
 - Duplicate Hugging Face client implementation was removed; `HuggingFaceClient` is the canonical Hub API client.
 - Hugging Face model registry IDs are now filesystem-safe and deterministic, preventing repository paths from becoming invalid `.part` paths on Android.
 - Android CI exists and verifies the declared SDK/NDK/native configuration before assembling and testing.
+- Confirmation state transitions are guarded so an empty confirmation queue cannot move the operator into `EXECUTING` or `BLOCKED`.
+- Confirmation waits now honor the configured confirmation window instead of blocking for the full task runtime.
 
 ## Known integration boundary
 
 The existing Settings screen currently persists most controls immediately through `SecurePrefs`. An explicit draft/Save UX is a UI-level enhancement and should not be confused with persistence: the persistence layer is already local and encrypted for protected settings.
-
-The existing README on the working branch could not be replaced through the repository write guard during this hardening pass. The complete architecture and Model Hub documentation therefore lives under `docs/`, while the original README remains intact until a normal repository write is permitted.
 
 ## Model download failure modes covered
 
@@ -48,8 +48,8 @@ The existing README on the working branch could not be replaced through the repo
 - native CMake/llama.cpp compilation
 - real Hugging Face download/resume/cancel test
 - load/unload of a downloaded GGUF on an arm64 Android device
-- Android 9, 10, 11, 12, 13 and 14 smoke tests
+- Android 12, 13 and 14 smoke tests
 - accessibility, overlay and notification permission flows
 - voice/STT/TTS asset compatibility
 
-No successful CI run is claimed until GitHub Actions actually executes for the current branch/PR.
+No successful CI run is claimed until GitHub Actions actually completes for the current commit.
