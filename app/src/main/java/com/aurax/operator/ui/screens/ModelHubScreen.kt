@@ -69,7 +69,7 @@ private fun ModelCard(
                 val progress = if (total > 0L) {
                     (model.downloadedBytes.toFloat() / total.toFloat()).coerceIn(0f, 1f)
                 } else null
-                if (progress != null) LinearProgressIndicator(progress = progress, modifier = Modifier.fillMaxWidth())
+                if (progress != null) LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
                 Text("Downloaded ${formatBytes(model.downloadedBytes)}${if (total > 0L) " / ${formatBytes(total)}" else ""}")
             }
 
