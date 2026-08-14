@@ -39,7 +39,7 @@ class ModelDownloadManager @Inject constructor(
         try {
             var response = connection.responseCode
             // Some CDNs reject Range after an interrupted transfer. Restart cleanly instead of corrupting the file.
-            if (start > 0L && response == HttpURLConnection.HTTP_REQUESTED_RANGE_NOT_SATISFIABLE) {
+            if (start > 0L && response == 416) {  // HTTP 416 Range Not Satisfiable
                 connection.disconnect()
                 partial.delete()
                 start = 0L
