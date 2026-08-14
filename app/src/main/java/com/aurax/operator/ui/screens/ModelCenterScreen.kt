@@ -22,6 +22,7 @@ import com.aurax.operator.ui.viewmodel.HuggingFaceHubViewModel
 import java.util.Locale
 import kotlin.math.max
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ModelCenterScreen(viewModel: HuggingFaceHubViewModel = hiltViewModel()) {
     val query by viewModel.query.collectAsState()
@@ -130,7 +131,7 @@ private fun HubFileCard(file: HuggingFaceFile, wifiOnly: Boolean, onDownload: ()
             Text(file.path, style = MaterialTheme.typography.titleSmall)
             Text(formatBytes(file.sizeBytes), style = MaterialTheme.typography.bodySmall)
             if (file.sha256.isNotBlank()) Text("SHA-256: ${file.sha256}", style = MaterialTheme.typography.bodySmall)
-            Button(onClick = onDownload, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.CloudDownload, contentDescription = null); Spacer(Modifier.width(8.dp)); Text(if (wifiOnly) "Queue Wi-Fi download" else "Download") }
+            Button(onClick = onDownload, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.CloudDownload, contentDescription = null); Spacer(Modifier.width(8.dp)); Text(if (wifiOnly) "Queue" else "Download") }
         }
     }
 }
@@ -150,8 +151,8 @@ private fun LocalModelCard(model: ModelEntity, onDownload: () -> Unit, onLoad: (
                 when {
                     model.isLoaded -> OutlinedButton(onClick = onUnload, modifier = Modifier.weight(1f)) { Text("Unload") }
                     model.status == "READY" -> Button(onClick = onLoad, modifier = Modifier.weight(1f)) { Text("Load") }
-                    model.status == "DOWNLOADING" -> OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Stop, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Cancel") }
-                    model.sourceUrl.isNotBlank() && !model.isLoaded -> Button(onClick = onDownload, modifier = Modifier.weight(1f)) { Icon(Icons.Default.CloudDownload, contentDescription = null); Spacer(Modifier.width(6.dp)); Text(if (model.status == "ERROR") "Retry" else "Download") }
+                    model.status == "DOWNLOADING" -> OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Stop, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Cancel") }
+                    model.sourceUrl.isNotBlank() && !model.isLoaded -> Button(onClick = onDownload, modifier = Modifier.weight(1f)) { Icon(Icons.Default.CloudDownload, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Download") }
                     else -> Spacer(Modifier.weight(1f))
                 }
                 if (!model.isBuiltIn && !model.isLoaded) IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = "Delete model") }
