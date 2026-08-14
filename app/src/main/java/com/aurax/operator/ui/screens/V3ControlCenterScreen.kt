@@ -23,7 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 private enum class V3Center {
-    OVERVIEW, MODELS, VOICE, SAFETY, PRIVACY, DIAGNOSTICS
+    OVERVIEW, MODELS, VOICE, UPGRADE, SAFETY, PRIVACY, DIAGNOSTICS
 }
 
 @Composable
@@ -37,13 +37,13 @@ fun V3ControlCenterScreen() {
         item {
             Text("AURA-X NEXUS Control Center", style = MaterialTheme.typography.headlineSmall)
             Text(
-                "One control plane for Model Hub, local inference, voice, operator safety and diagnostics. Features are reported honestly: ready, permission-gated, model-gated or not bundled.",
+                "Unified control plane for Model Hub, guarded automation, voice, local RAG, encrypted export, analytics and loopback companion controls.",
                 style = MaterialTheme.typography.bodyMedium
             )
         }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(V3Center.OVERVIEW, V3Center.MODELS, V3Center.VOICE).forEach { target ->
+                listOf(V3Center.OVERVIEW, V3Center.MODELS, V3Center.VOICE, V3Center.UPGRADE).forEach { target ->
                     FilterChip(
                         selected = center == target,
                         onClick = { center = target },
@@ -66,19 +66,19 @@ fun V3ControlCenterScreen() {
         when (center) {
             V3Center.OVERVIEW -> {
                 item { NexusCard("Model Management", "Hugging Face browsing, GGUF downloads, resume, verification, load/unload and local lifecycle.", "READY") }
-                item { NexusCard("Operator", "Accessibility-based controlled automation, deterministic guardrails, confirmations and emergency abort.", "READY") }
-                item { NexusCard("Voice", "Local STT/TTS architecture with model-gated voice assets.", "MODEL-GATED") }
-                item { NexusCard("Vision", "Accessibility tree and screenshot context are available; multimodal interpretation requires a compatible local model.", "MODEL-GATED") }
-                item { NexusCard("RAG / Memory", "Conversation and memory persistence are available; full vector retrieval remains a separate runtime capability.", "PARTIAL") }
-                item { NexusCard("Plugins", "Tool registry architecture is present; arbitrary third-party plugin execution is intentionally not enabled by default.", "GUARDED") }
-                item { NexusCard("LAN Server", "No unrestricted network agent endpoint is enabled by default. Local-first operation remains the default security posture.", "NOT-BUNDLED") }
-                item { NexusCard("Backup / Restore", "Local data export and safety-log export are available; full encrypted project backup is a separate release gate.", "PARTIAL") }
-                item { NexusCard("Analytics", "Diagnostics and local operational telemetry exist; a full dashboard is not claimed until its data pipeline is complete.", "PARTIAL") }
-                item { NexusCard("Widgets", "Android UI is the current primary surface. Home-screen widget support remains a separate capability.", "NOT-BUNDLED") }
-                item { NexusCard("Onboarding", "Permission and readiness checks are exposed through Settings and Permission Center.", "READY") }
+                item { NexusCard("Operator", "Accessibility automation with deterministic guardrails, confirmations and emergency abort.", "READY") }
+                item { NexusCard("Voice", "Wake gate + continuous conversation state machine added; microphone/model runtime remains model/engine-gated.", "RUNTIME READY / MODEL-GATED") }
+                item { NexusCard("Vision", "Screenshot and accessibility context remain available; multimodal interpretation is still model-gated.", "MODEL-GATED") }
+                item { NexusCard("RAG / Memory", "Added file-backed chunking, local vectors and semantic top-K retrieval without a cloud dependency.", "READY") }
+                item { NexusCard("LAN Companion", "Added a loopback-only authenticated HTTP health/about endpoint; it never binds the phone's LAN interface.", "GUARDED READY") }
+                item { NexusCard("Backup", "Added AES-GCM encrypted export container and staged restore artifact handling.", "READY / STAGED RESTORE") }
+                item { NexusCard("Analytics", "Added Room-backed aggregation for task success, memories, safety events and ready model counts.", "READY") }
+                item { NexusCard("Quick Settings", "Added an Android Quick Settings tile for emergency abort and cockpit access.", "READY") }
+                item { NexusCard("Onboarding", "Existing permission, safety and readiness surfaces remain the activation gate.", "READY") }
             }
             V3Center.MODELS -> item { ModelCenterScreen() }
             V3Center.VOICE -> item { VoiceCenterScreen() }
+            V3Center.UPGRADE -> item { NexusUpgradeCenterScreen(androidx.compose.ui.platform.LocalContext.current) }
             V3Center.SAFETY -> item { SafetyCenterScreen() }
             V3Center.PRIVACY -> item { PrivacyCenterScreen() }
             V3Center.DIAGNOSTICS -> item { DiagnosticsScreen() }
@@ -88,8 +88,8 @@ fun V3ControlCenterScreen() {
             OutlinedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Implementation rule", style = MaterialTheme.typography.titleMedium)
-                    Text("A UI control is only marked READY when its runtime path exists. Placeholder switches are not presented as implemented functionality.", style = MaterialTheme.typography.bodySmall)
-                    Button(onClick = { center = V3Center.MODELS }, modifier = Modifier.fillMaxWidth()) { Text("Open Model Hub") }
+                    Text("Only concrete runtime paths are marked READY. Native/model-dependent features stay explicitly gated.", style = MaterialTheme.typography.bodySmall)
+                    Button(onClick = { center = V3Center.UPGRADE }, modifier = Modifier.fillMaxWidth()) { Text("Open Upgrade Controls") }
                 }
             }
         }
