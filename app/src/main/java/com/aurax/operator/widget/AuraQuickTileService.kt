@@ -17,11 +17,8 @@ class AuraQuickTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
-        if (SafetyController.isAborted()) {
-            SafetyController.clearAbort()
-        } else {
-            SafetyController.requestAbort("Quick Settings tile")
-        }
+        if (SafetyController.isAbortRequested()) SafetyController.clearAbort()
+        else SafetyController.requestAbort("Quick Settings tile")
         qsTile?.state = Tile.STATE_ACTIVE
         qsTile?.updateTile()
     }
