@@ -92,6 +92,7 @@ fun ModelCenterScreen(viewModel: HuggingFaceHubViewModel = hiltViewModel()) {
             LocalModelCard(
                 model = model,
                 onDownload = { viewModel.downloadLocal(model.id) },
+                onRetry = { viewModel.retry(model.id) },
                 onLoad = { viewModel.load(model.id) },
                 onUnload = { viewModel.unload(model.id) },
                 onCancel = { viewModel.cancel(model.id) },
@@ -102,7 +103,7 @@ fun ModelCenterScreen(viewModel: HuggingFaceHubViewModel = hiltViewModel()) {
             OutlinedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Model lifecycle", style = MaterialTheme.typography.titleMedium)
-                    Text("AVAILABLE → DOWNLOADING → READY → LOADED. Failed downloads enter ERROR. Downloads resume from .part files when the server supports HTTP Range.", style = MaterialTheme.typography.bodySmall)
+                    Text("AVAILABLE → DOWNLOADING → READY → LOADED. Failed downloads enter ERROR and can be retried without losing a valid partial file.", style = MaterialTheme.typography.bodySmall)
                     Text("GGUF downloads are checked for GGUF signature, expected size when available, and SHA-256 when Hugging Face exposes an LFS hash.", style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -137,7 +138,15 @@ private fun HubFileCard(file: HuggingFaceFile, wifiOnly: Boolean, onDownload: ()
 }
 
 @Composable
-private fun LocalModelCard(model: ModelEntity, onDownload: () -> Unit, onLoad: () -> Unit, onUnload: () -> Unit, onCancel: () -> Unit, onDelete: () -> Unit) {
+private fun LocalModelCard(
+    model: ModelEntity,
+    onDownload: () -> Unit,
+    onRetry: () -> Unit,
+    onLoad: () -> Unit,
+    onUnload: () -> Unit,
+    onCancel: () -> Unit,
+    onDelete: () -> Unit
+) {
     ElevatedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(model.displayName, style = MaterialTheme.typography.titleMedium)
@@ -147,11 +156,15 @@ private fun LocalModelCard(model: ModelEntity, onDownload: () -> Unit, onLoad: (
                 LinearProgressIndicator(progress = { (progress / 100.0).toFloat() }, modifier = Modifier.fillMaxWidth())
                 Text("${progress.toInt()}% · ${formatBytes(model.downloadedBytes)} / ${formatBytes(model.sizeBytes)}", style = MaterialTheme.typography.bodySmall)
             }
+            if (model.status == "ERROR") {
+                Text("Download failed. Retry will reuse a valid partial download when the server supports HTTP Range.", style = MaterialTheme.typography.bodySmall)
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 when {
                     model.isLoaded -> OutlinedButton(onClick = onUnload, modifier = Modifier.weight(1f)) { Text("Unload") }
                     model.status == "READY" -> Button(onClick = onLoad, modifier = Modifier.weight(1f)) { Text("Load") }
                     model.status == "DOWNLOADING" -> OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Stop, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Cancel") }
+                    model.status == "ERROR" -> Button(onClick = onRetry, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Refresh, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Retry Download") }
                     model.sourceUrl.isNotBlank() && !model.isLoaded -> Button(onClick = onDownload, modifier = Modifier.weight(1f)) { Icon(Icons.Default.CloudDownload, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Download") }
                     else -> Spacer(Modifier.weight(1f))
                 }

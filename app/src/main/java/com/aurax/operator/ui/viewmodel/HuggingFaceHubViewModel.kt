@@ -96,8 +96,19 @@ class HuggingFaceHubViewModel @Inject constructor(
                 val model = hub.get(modelId) ?: error("Model not found")
                 require(model.sourceUrl.isNotBlank()) { "This model has no downloadable asset" }
                 enqueueDownload(model)
-                _message.value = "Main model download queued."
+                _message.value = "Model download queued."
             }.onFailure { _message.value = it.message ?: "Unable to queue model download" }
+        }
+    }
+
+    fun retry(modelId: String) {
+        viewModelScope.launch {
+            runCatching {
+                val model = hub.get(modelId) ?: error("Model not found")
+                require(model.sourceUrl.isNotBlank()) { "This model has no downloadable asset" }
+                enqueueDownload(model)
+                _message.value = "Download retry queued. Existing partial data will be resumed when supported."
+            }.onFailure { _message.value = it.message ?: "Unable to retry download" }
         }
     }
 
@@ -108,17 +119,19 @@ class HuggingFaceHubViewModel @Inject constructor(
         val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
             .setConstraints(constraints)
             .addTag("model-download")
-            .setInputData(Data.Builder()
-                .putString(ModelDownloadWorker.KEY_MODEL_ID, entity.id)
-                .putBoolean(ModelDownloadWorker.KEY_WIFI_ONLY, _wifiOnly.value)
-                .build())
+            .setInputData(
+                Data.Builder()
+                    .putString(ModelDownloadWorker.KEY_MODEL_ID, entity.id)
+                    .putBoolean(ModelDownloadWorker.KEY_WIFI_ONLY, _wifiOnly.value)
+                    .build()
+            )
             .build()
-        workManager.enqueueUniqueWork("model-download:${entity.id}", ExistingWorkPolicy.REPLACE, request)
+        workManager.enqueueUniqueWork("model-download:${entity.id}", ExistingWorkPolicy.KEEP, request)
     }
 
     fun cancel(modelId: String) {
         workManager.cancelUniqueWork("model-download:$modelId")
-        _message.value = "Download cancelled. A partial file may remain and will resume on retry."
+        _message.value = "Download cancelled. Partial data is retained for resume/retry."
     }
 
     fun load(modelId: String) {
@@ -139,6 +152,7 @@ class HuggingFaceHubViewModel @Inject constructor(
 
     fun remove(modelId: String) {
         viewModelScope.launch {
+            workManager.cancelUniqueWork("model-download:$modelId")
             runCatching { hub.remove(modelId) }
                 .onSuccess { _message.value = "Model removed from local registry and storage." }
                 .onFailure { _message.value = it.message ?: "Unable to remove model" }

@@ -30,6 +30,7 @@ fun AuraNavigation() {
         Destination("Operator", Icons.Default.Security),
         Destination("Tasks", Icons.Default.Task),
         Destination("Models", Icons.Default.Memory),
+        Destination("Nexus", Icons.Default.Hub),
         Destination("Settings", Icons.Default.Settings)
     )
 
@@ -71,6 +72,7 @@ fun AuraNavigation() {
                 2 -> OperatorScreen()
                 3 -> TaskScreen()
                 4 -> ModelHubScreen()
+                5 -> V3ControlCenterScreen()
                 else -> SettingsScreen()
             }
         }
