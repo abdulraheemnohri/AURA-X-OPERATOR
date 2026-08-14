@@ -27,6 +27,8 @@ import androidx.core.content.ContextCompat
 import com.aurax.operator.core.app.AppState
 import com.aurax.operator.core.security.SecurePrefs
 import com.aurax.operator.voice.VoiceOutput
+import com.aurax.operator.voice.stt.WhisperRecognizer
+import java.io.File
 import java.util.Locale
 
 @Composable
@@ -34,10 +36,12 @@ fun VoiceScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { SecurePrefs(context) }
     val voice = remember { VoiceOutput(context) }
+    val whisper = remember { WhisperRecognizer() }
     var transcript by remember { mutableStateOf("") }
     var listening by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("Hold to speak") }
     var recognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
+    var usingWhisper by remember { mutableStateOf(false) }
     var permissionGranted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
     }
@@ -47,11 +51,14 @@ fun VoiceScreen(onBack: () -> Unit) {
         status = if (granted) "Hold to speak" else "Microphone permission is required"
     }
 
-    fun startListening() {
-        if (!permissionGranted) {
-            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-            return
-        }
+    fun languageTag(): String = when (prefs.sttLanguage.lowercase(Locale.US)) {
+        "ur" -> "ur-PK"
+        "hi" -> "hi-IN"
+        "en" -> "en-US"
+        else -> "auto"
+    }
+
+    fun startSystemRecognizer(language: String) {
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             status = "Speech recognition is unavailable on this device"
             return
@@ -60,8 +67,8 @@ fun VoiceScreen(onBack: () -> Unit) {
         recognizer?.destroy()
         recognizer = r
         r.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) { status = "Listening…"; listening = true }
-            override fun onBeginningOfSpeech() { status = "Listening…" }
+            override fun onReadyForSpeech(params: Bundle?) { status = "Listening online…"; listening = true }
+            override fun onBeginningOfSpeech() { status = "Listening online…" }
             override fun onRmsChanged(rmsdB: Float) = Unit
             override fun onBufferReceived(buffer: ByteArray?) = Unit
             override fun onEndOfSpeech() { listening = false; status = "Processing…" }
@@ -86,29 +93,60 @@ fun VoiceScreen(onBack: () -> Unit) {
             }
             override fun onEvent(eventType: Int, params: Bundle?) = Unit
         })
-        val language = when (prefs.sttLanguage.lowercase(Locale.US)) {
-            "ur" -> "ur-PK"
-            "hi" -> "hi-IN"
-            "en" -> "en-US"
-            else -> Locale.getDefault().toLanguageTag()
-        }
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, if (language == "auto") Locale.getDefault().toLanguageTag() else language)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
         }
         r.startListening(intent)
     }
 
+    fun startListening() {
+        if (!permissionGranted) {
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+
+        val modelPath = prefs.sttModelPath
+        val language = languageTag()
+        if (modelPath.isNotBlank() && File(modelPath).isFile && whisper.isAvailable()) {
+            usingWhisper = whisper.start(modelPath, language) { result ->
+                transcript = result
+                listening = false
+                usingWhisper = false
+                status = if (result.isBlank()) "No speech recognized" else "Offline transcript ready"
+            }
+            if (usingWhisper) {
+                listening = true
+                status = "Listening offline…"
+                return
+            }
+        }
+
+        usingWhisper = false
+        startSystemRecognizer(language)
+    }
+
     fun stopListening() {
+        if (usingWhisper) {
+            whisper.stop()
+            usingWhisper = false
+            listening = false
+            status = "Processing offline…"
+            return
+        }
         recognizer?.stopListening()
         listening = false
         status = "Processing…"
     }
 
     DisposableEffect(Unit) {
-        onDispose { recognizer?.destroy(); voice.shutdown() }
+        onDispose {
+            recognizer?.destroy()
+            whisper.stop()
+            voice.shutdown()
+        }
     }
 
     val pulse by rememberInfiniteTransition(label = "voice").animateFloat(
@@ -135,6 +173,7 @@ fun VoiceScreen(onBack: () -> Unit) {
                 }
             }
             AssistChip(onClick = {}, label = { Text("Operator: ${AppState.operator.value.phase}") })
+            AssistChip(onClick = {}, label = { Text(if (usingWhisper) "STT: Whisper offline" else "STT: Android fallback") })
             Text(status, style = MaterialTheme.typography.bodyLarge)
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
@@ -148,10 +187,8 @@ fun VoiceScreen(onBack: () -> Unit) {
                     modifier = Modifier.pointerInput(permissionGranted) {
                         detectTapGestures(onPress = {
                             startListening()
-                            if (permissionGranted) {
-                                tryAwaitRelease()
-                                stopListening()
-                            }
+                            if (permissionGranted) tryAwaitRelease()
+                            if (listening) stopListening()
                         })
                     }
                 ) { Text(if (permissionGranted) "Hold to Speak" else "Grant Microphone") }
