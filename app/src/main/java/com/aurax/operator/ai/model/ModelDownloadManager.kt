@@ -53,7 +53,17 @@ class ModelDownloadManager @Inject constructor(
         val required = (model.sizeBytes.takeIf { it > 0L } ?: 1L) + safetyMargin
         require(availableStorageBytes() >= required) { "Not enough free storage for model" }
 
-        var start = partial.length()
+        if (model.sizeBytes > 0L) {
+            val remaining = (model.sizeBytes - start).coerceAtLeast(0L)
+            require(availableStorageBytes() >= remaining + STORAGE_SAFETY_MARGIN_BYTES) {
+                "Not enough free storage for model download"
+            }
+        } else {
+            require(availableStorageBytes() >= STORAGE_SAFETY_MARGIN_BYTES) {
+                "Not enough free storage for model download"
+            }
+        }
+
         update(model.copy(status = "DOWNLOADING", downloadedBytes = start))
 
         var connection = openConnection(model.sourceUrl, start)
@@ -73,8 +83,23 @@ class ModelDownloadManager @Inject constructor(
             }
 
             val append = start > 0L && response == HttpURLConnection.HTTP_PARTIAL
-            if (append) validateContentRange(connection.getHeaderField("Content-Range"), start)
-            if (!append) RandomAccessFile(partial, "rw").use { it.setLength(0L) }
+            if (append) {
+                val range = connection.getHeaderField("Content-Range")
+                    ?: error("Server returned 206 without Content-Range")
+                val rangeStart = parseContentRangeStart(range)
+                require(rangeStart == start) {
+                    "Server resumed at byte $rangeStart instead of requested byte $start"
+                }
+            } else {
+                RandomAccessFile(partial, "rw").use { it.setLength(0L) }
+            }
+
+            val contentLength = connection.contentLengthLong
+            if (model.sizeBytes > 0L && append && contentLength >= 0L) {
+                require(start + contentLength == model.sizeBytes) {
+                    "Resume response size does not match expected model size"
+                }
+            }
 
             connection.inputStream.use { input ->
                 RandomAccessFile(partial, "rw").use { output ->
@@ -140,6 +165,12 @@ class ModelDownloadManager @Inject constructor(
             setRequestProperty("User-Agent", "AURA-X-Operator/3.4")
         }
 
+    private fun parseContentRangeStart(value: String): Long {
+        val match = Regex("^bytes\\s+(\\d+)-\\d+/\\d+$", RegexOption.IGNORE_CASE).find(value.trim())
+            ?: error("Invalid Content-Range header")
+        return match.groupValues[1].toLongOrNull() ?: error("Invalid Content-Range start")
+    }
+
     private suspend fun update(model: ModelEntity) = withContext(Dispatchers.IO) {
         dao.getModel(model.id)?.let { dao.updateModel(model) }
     }
@@ -166,5 +197,13 @@ class ModelDownloadManager @Inject constructor(
         val network = manager.activeNetwork ?: return false
         val capabilities = manager.getNetworkCapabilities(network) ?: return false
         return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+    }
+
+    private object StatFsCompat {
+        fun availableBytes(file: File): Long = android.os.StatFs(file.absolutePath).availableBytes
+    }
+
+    private companion object {
+        const val STORAGE_SAFETY_MARGIN_BYTES = 256L * 1024L * 1024L
     }
 }
