@@ -6,12 +6,95 @@
 #include <string>
 #include <vector>
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "AURA-X", __VA_ARGS__)
-namespace { std::mutex g_mutex; llama_model *g_model=nullptr; std::string g_model_path;
-void unload_model(){if(g_model){llama_model_free(g_model);g_model=nullptr;}g_model_path.clear();}
-bool ensure_model(const std::string& path){if(g_model&&g_model_path==path)return true;unload_model();auto p=llama_model_default_params();p.n_gpu_layers=0;g_model=llama_model_load_from_file(path.c_str(),p);if(!g_model){LOGE("Unable to load GGUF model: %s",path.c_str());return false;}g_model_path=path;return true;}}
-extern "C" JNIEXPORT jstring JNICALL Java_com_aurax_operator_ai_runtime_LlamaCppRuntime_nativeGenerate(JNIEnv* env,jobject,jstring modelPath,jstring prompt,jint maxTokens,jfloat temperature,jint contextTokens,jint threads,jint batchSize,jint topK){
-const char* mc=env->GetStringUTFChars(modelPath,nullptr);const char* pc=env->GetStringUTFChars(prompt,nullptr);std::string path(mc?mc:"");std::string input(pc?pc:"");env->ReleaseStringUTFChars(modelPath,mc);env->ReleaseStringUTFChars(prompt,pc);std::lock_guard<std::mutex> lock(g_mutex);if(path.empty()||input.empty()||!ensure_model(path))return env->NewStringUTF("AURA-X: unable to load local model.");
-const llama_vocab* vocab=llama_model_get_vocab(g_model);int n_prompt=-llama_tokenize(vocab,input.c_str(),input.size(),nullptr,0,true,true);if(n_prompt<=0)return env->NewStringUTF("AURA-X: prompt tokenization failed.");int requested=std::clamp((int)maxTokens,32,2048);int requested_context=std::clamp((int)contextTokens,256,4096);if(n_prompt>=requested_context)return env->NewStringUTF("AURA-X: prompt exceeds context window.");std::vector<llama_token> prompt_tokens(n_prompt);if(llama_tokenize(vocab,input.c_str(),input.size(),prompt_tokens.data(),prompt_tokens.size(),true,true)<0)return env->NewStringUTF("AURA-X: prompt tokenization failed.");
-llama_context_params cp=llama_context_default_params();cp.n_ctx=(uint32_t)std::min(requested_context,n_prompt+requested+8);cp.n_batch=std::min<uint32_t>((uint32_t)std::clamp((int)batchSize,32,2048),cp.n_ctx);cp.n_threads=std::clamp((int)threads,1,12);cp.n_threads_batch=cp.n_threads;llama_context* ctx=llama_init_from_model(g_model,cp);if(!ctx)return env->NewStringUTF("AURA-X: context creation failed.");
-llama_sampler_chain_params sp=llama_sampler_chain_default_params();llama_sampler* sampler=llama_sampler_chain_init(sp);llama_sampler_chain_add(sampler,llama_sampler_init_top_k(std::clamp((int)topK,1,200)));float t=std::clamp((float)temperature,0.0f,1.5f);if(t<=0.001f)llama_sampler_chain_add(sampler,llama_sampler_init_greedy());else llama_sampler_chain_add(sampler,llama_sampler_init_temp(t));
-std::vector<llama_token> batch=prompt_tokens;llama_batch b=llama_batch_get_one(batch.data(),(int32_t)batch.size());std::string output;output.reserve((size_t)requested*4);for(int generated=0;generated<requested;++generated){if(llama_decode(ctx,b)!=0){output="AURA-X: inference decode failed.";break;}llama_token token=llama_sampler_sample(sampler,ctx,-1);if(llama_vocab_is_eog(vocab,token))break;char piece[512];int n=llama_token_to_piece(vocab,token,piece,sizeof(piece),0,true);if(n>0)output.append(piece,n);batch.assign(1,token);b=llama_batch_get_one(batch.data(),1);}llama_sampler_free(sampler);llama_free(ctx);return env->NewStringUTF(output.c_str());}
+namespace {
+std::mutex g_mutex;
+llama_model *g_model = nullptr;
+std::string g_model_path;
+
+void unload_model() {
+    if (g_model) {
+        llama_model_free(g_model);
+        g_model = nullptr;
+    }
+    g_model_path.clear();
+}
+
+bool ensure_model(const std::string& path) {
+    if (g_model && g_model_path == path) return true;
+    unload_model();
+    auto p = llama_model_default_params();
+    p.n_gpu_layers = 0;
+    g_model = llama_model_load_from_file(path.c_str(), p);
+    if (!g_model) {
+        LOGE("Unable to load GGUF model: %s", path.c_str());
+        return false;
+    }
+    g_model_path = path;
+    return true;
+}
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_aurax_operator_ai_runtime_LlamaCppRuntime_nativeUnload(JNIEnv*, jobject) {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    unload_model();
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_aurax_operator_ai_runtime_LlamaCppRuntime_nativeGenerate(
+    JNIEnv* env, jobject, jstring modelPath, jstring prompt, jint maxTokens,
+    jfloat temperature, jint contextTokens, jint threads, jint batchSize, jint topK) {
+    const char* mc = env->GetStringUTFChars(modelPath, nullptr);
+    const char* pc = env->GetStringUTFChars(prompt, nullptr);
+    std::string path(mc ? mc : "");
+    std::string input(pc ? pc : "");
+    env->ReleaseStringUTFChars(modelPath, mc);
+    env->ReleaseStringUTFChars(prompt, pc);
+    std::lock_guard<std::mutex> lock(g_mutex);
+    if (path.empty() || input.empty() || !ensure_model(path)) {
+        return env->NewStringUTF("AURA-X: unable to load local model.");
+    }
+    const llama_vocab* vocab = llama_model_get_vocab(g_model);
+    int n_prompt = -llama_tokenize(vocab, input.c_str(), input.size(), nullptr, 0, true, true);
+    if (n_prompt <= 0) return env->NewStringUTF("AURA-X: prompt tokenization failed.");
+    int requested = std::clamp((int)maxTokens, 32, 2048);
+    int requested_context = std::clamp((int)contextTokens, 256, 4096);
+    if (n_prompt >= requested_context) return env->NewStringUTF("AURA-X: prompt exceeds context window.");
+    std::vector<llama_token> prompt_tokens(n_prompt);
+    if (llama_tokenize(vocab, input.c_str(), input.size(), prompt_tokens.data(), prompt_tokens.size(), true, true) < 0) {
+        return env->NewStringUTF("AURA-X: prompt tokenization failed.");
+    }
+    llama_context_params cp = llama_context_default_params();
+    cp.n_ctx = (uint32_t)std::min(requested_context, n_prompt + requested + 8);
+    cp.n_batch = std::min<uint32_t>((uint32_t)std::clamp((int)batchSize, 32, 2048), cp.n_ctx);
+    cp.n_threads = std::clamp((int)threads, 1, 12);
+    cp.n_threads_batch = cp.n_threads;
+    llama_context* ctx = llama_init_from_model(g_model, cp);
+    if (!ctx) return env->NewStringUTF("AURA-X: context creation failed.");
+    llama_sampler_chain_params sp = llama_sampler_chain_default_params();
+    llama_sampler* sampler = llama_sampler_chain_init(sp);
+    llama_sampler_chain_add(sampler, llama_sampler_init_top_k(std::clamp((int)topK, 1, 200)));
+    float t = std::clamp((float)temperature, 0.0f, 1.5f);
+    if (t <= 0.001f) llama_sampler_chain_add(sampler, llama_sampler_init_greedy());
+    else llama_sampler_chain_add(sampler, llama_sampler_init_temp(t));
+    std::vector<llama_token> batch = prompt_tokens;
+    llama_batch b = llama_batch_get_one(batch.data(), (int32_t)batch.size());
+    std::string output;
+    output.reserve((size_t)requested * 4);
+    for (int generated = 0; generated < requested; ++generated) {
+        if (llama_decode(ctx, b) != 0) {
+            output = "AURA-X: inference decode failed.";
+            break;
+        }
+        llama_token token = llama_sampler_sample(sampler, ctx, -1);
+        if (llama_vocab_is_eog(vocab, token)) break;
+        char piece[512];
+        int n = llama_token_to_piece(vocab, token, piece, sizeof(piece), 0, true);
+        if (n > 0) output.append(piece, n);
+        batch.assign(1, token);
+        b = llama_batch_get_one(batch.data(), 1);
+    }
+    llama_sampler_free(sampler);
+    llama_free(ctx);
+    return env->NewStringUTF(output.c_str());
+}
