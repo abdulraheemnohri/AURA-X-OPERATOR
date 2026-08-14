@@ -55,7 +55,7 @@ class ModelHub @Inject constructor(
             displayName = "${repo.id} · ${file.path.substringAfterLast('/')}",
             category = category,
             format = format,
-            quantization = file.path.substringAfterLast('.', "").uppercase(),
+            quantization = extractQuantization(file.path),
             sourceUrl = file.downloadUrl,
             sha256 = file.sha256,
             sizeBytes = file.sizeBytes,
@@ -76,7 +76,10 @@ class ModelHub @Inject constructor(
         require(availableStorageBytes() > file.length()) { "Not enough free storage" }
         val destination = File(modelDirectory(), file.name.safeModelFileName()).also { it.parentFile?.mkdirs() }
         file.copyTo(destination, overwrite = true)
-        val hash = ModelStatus.validateFile(destination).sha256 ?: ""
+        val hash = sha256(destination)
+        if (metadata.format == "GGUF") {
+            require(ModelStatus.validateFile(destination).isValid) { "Imported GGUF failed signature/integrity validation" }
+        }
         val entity = ModelEntity(
             id = "imported:${destination.name.lowercase()}", name = destination.name,
             displayName = metadata.displayName.ifBlank { destination.nameWithoutExtension }, category = metadata.category,
@@ -124,8 +127,27 @@ class ModelHub @Inject constructor(
         return "hf_${digest.take(40)}"
     }
 
+    private fun extractQuantization(path: String): String {
+        val stem = path.substringAfterLast('/').substringBeforeLast('.', "")
+        val match = Regex("(?i)(Q[0-9](?:_[A-Z0-9]+)+|IQ[0-9]_[A-Z0-9]+)").find(stem)
+        return match?.value?.uppercase() ?: ""
+    }
+
     private fun String.safeModelFileName(): String =
         substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "model.bin" }.take(180)
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(1024 * 1024)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                if (count > 0) digest.update(buffer, 0, count)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
 }
 
 data class ImportedModelMetadata(
