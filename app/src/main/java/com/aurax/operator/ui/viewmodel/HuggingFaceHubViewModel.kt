@@ -18,9 +18,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -83,22 +83,37 @@ class HuggingFaceHubViewModel @Inject constructor(
     fun download(repo: HuggingFaceModel, file: HuggingFaceFile) {
         viewModelScope.launch {
             runCatching {
-                val entity: ModelEntity = hub.registerHubFile(repo, file)
-                val constraints = Constraints.Builder()
-                    .setRequiredNetworkType(if (_wifiOnly.value) NetworkType.UNMETERED else NetworkType.CONNECTED)
-                    .build()
-                val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
-                    .setConstraints(constraints)
-                    .addTag("model-download")
-                    .setInputData(Data.Builder()
-                        .putString(ModelDownloadWorker.KEY_MODEL_ID, entity.id)
-                        .putBoolean(ModelDownloadWorker.KEY_WIFI_ONLY, _wifiOnly.value)
-                        .build())
-                    .build()
-                workManager.enqueueUniqueWork("model-download:${entity.id}", ExistingWorkPolicy.REPLACE, request)
+                val entity = hub.registerHubFile(repo, file)
+                enqueueDownload(entity)
                 _message.value = "Download queued: ${file.path}"
             }.onFailure { _message.value = it.message ?: "Unable to queue download" }
         }
+    }
+
+    fun downloadLocal(modelId: String) {
+        viewModelScope.launch {
+            runCatching {
+                val model = hub.get(modelId) ?: error("Model not found")
+                require(model.sourceUrl.isNotBlank()) { "This model has no downloadable asset" }
+                enqueueDownload(model)
+                _message.value = "Main model download queued."
+            }.onFailure { _message.value = it.message ?: "Unable to queue model download" }
+        }
+    }
+
+    private fun enqueueDownload(entity: ModelEntity) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(if (_wifiOnly.value) NetworkType.UNMETERED else NetworkType.CONNECTED)
+            .build()
+        val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
+            .setConstraints(constraints)
+            .addTag("model-download")
+            .setInputData(Data.Builder()
+                .putString(ModelDownloadWorker.KEY_MODEL_ID, entity.id)
+                .putBoolean(ModelDownloadWorker.KEY_WIFI_ONLY, _wifiOnly.value)
+                .build())
+            .build()
+        workManager.enqueueUniqueWork("model-download:${entity.id}", ExistingWorkPolicy.REPLACE, request)
     }
 
     fun cancel(modelId: String) {
