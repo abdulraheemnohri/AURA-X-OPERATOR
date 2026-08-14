@@ -4,10 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.Constraints
 import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import androidx.work.ExistingWorkPolicy
 import com.aurax.operator.ai.model.ModelDownloadWorker
 import com.aurax.operator.ai.model.ModelHub
 import com.aurax.operator.data.entities.ModelEntity
@@ -52,7 +52,7 @@ class ModelHubViewModel @Inject constructor(
 
         workManager.enqueueUniqueWork(
             "model-download:${model.id}",
-            ExistingWorkPolicy.REPLACE,
+            ExistingWorkPolicy.KEEP,
             request
         )
     }
