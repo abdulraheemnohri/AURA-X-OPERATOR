@@ -57,6 +57,46 @@ fun SettingsScreen() {
     var modelInstalled by remember { mutableStateOf(models.isInstalled()) }
     var message by remember { mutableStateOf("") }
     var refresh by remember { mutableIntStateOf(0) }
+    var dirty by remember { mutableStateOf(false) }
+
+    fun markDirty() { dirty = true }
+
+    fun saveSettings() {
+        prefs.policy = policy
+        prefs.biometricRequired = biometric
+        prefs.floatingIndicatorEnabled = indicator
+        prefs.incognitoProtectionEnabled = incognito
+        prefs.hapticFeedbackEnabled = haptics
+        prefs.voiceAutoInterruptEnabled = voiceInterrupt
+        prefs.confirmationSeconds = countdown
+        prefs.maxActionsPerTask = maxActions
+        prefs.maxTaskSeconds = maxTaskSeconds
+        prefs.modelTemperature = temperature
+        prefs.modelMaxTokens = maxTokens
+        prefs.modelContextTokens = contextTokens
+        prefs.sttLanguage = sttLanguage
+        prefs.themeMode = themeMode.name
+        dirty = false
+        message = "Settings saved locally."
+    }
+
+    fun reloadSettings() {
+        policy = prefs.policy
+        biometric = prefs.biometricRequired
+        indicator = prefs.floatingIndicatorEnabled
+        incognito = prefs.incognitoProtectionEnabled
+        haptics = prefs.hapticFeedbackEnabled
+        voiceInterrupt = prefs.voiceAutoInterruptEnabled
+        countdown = prefs.confirmationSeconds
+        maxActions = prefs.maxActionsPerTask
+        maxTaskSeconds = prefs.maxTaskSeconds
+        temperature = prefs.modelTemperature
+        maxTokens = prefs.modelMaxTokens
+        contextTokens = prefs.modelContextTokens
+        sttLanguage = prefs.sttLanguage
+        themeMode = AuraThemeMode.fromStored(prefs.themeMode)
+        dirty = false
+    }
 
     if (center != SettingsCenter.ROOT) {
         Column(Modifier.fillMaxSize()) {
@@ -112,7 +152,16 @@ fun SettingsScreen() {
     ) {
         item {
             Text("AURA-X Control Plane", style = MaterialTheme.typography.headlineMedium)
-            Text("Configure operator autonomy, safety, local models, voice and diagnostics. All settings are stored locally.", style = MaterialTheme.typography.bodyMedium)
+            Text("Configure operator autonomy, safety, local models, voice and diagnostics. Settings can be reviewed and explicitly saved locally.", style = MaterialTheme.typography.bodyMedium)
+        }
+        item {
+            SettingsSection("Settings changes", if (dirty) "Unsaved changes are pending" else "All staged values are saved") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = { saveSettings() }, enabled = dirty, modifier = Modifier.weight(1f)) { Text("Save Settings") }
+                    OutlinedButton(onClick = { reloadSettings(); message = "Unsaved changes discarded." }, enabled = dirty, modifier = Modifier.weight(1f)) { Text("Discard") }
+                }
+                if (!dirty) Text("Saved locally and ready for the next operator session.", style = MaterialTheme.typography.bodySmall)
+            }
         }
         item {
             SettingsSection("Operator readiness", "Required capabilities before automation can safely act") {
@@ -135,7 +184,7 @@ fun SettingsScreen() {
             SettingsSection("Automation policy", "The safety engine always overrides the selected autonomy level") {
                 listOf("OBSERVE_ONLY", "SUGGEST_ONLY", "CONFIRM_ACTIONS", "FULL_AUTO_LOW_RISK").forEach { value ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = policy == value, onClick = { policy = value; prefs.policy = value })
+                        RadioButton(selected = policy == value, onClick = { policy = value; markDirty() })
                         Column(Modifier.weight(1f)) {
                             Text(value.replace('_', ' '), style = MaterialTheme.typography.titleSmall)
                             Text(policyDescription(value), style = MaterialTheme.typography.bodySmall)
@@ -146,48 +195,43 @@ fun SettingsScreen() {
         }
         item {
             SettingsSection("Operator safety controls", "Local guardrails and recovery defaults") {
-                PreferenceSwitch("Require biometric unlock", "Protect operator sessions before deep automation", prefs.biometricRequired) { prefs.biometricRequired = it }
-                PreferenceSwitch("Always show floating indicator", "Keep operator activity visibly disclosed", prefs.floatingIndicatorEnabled) { prefs.floatingIndicatorEnabled = it }
-                PreferenceSwitch("Block incognito/private browsing", "Do not inspect or automate private browser sessions", prefs.incognitoProtectionEnabled) { prefs.incognitoProtectionEnabled = it }
-                PreferenceSwitch("Haptic feedback", "Confirm important operator state changes", prefs.hapticFeedbackEnabled) { prefs.hapticFeedbackEnabled = it }
-                Text("Confirmation countdown: ${prefs.confirmationSeconds}s", style = MaterialTheme.typography.titleSmall)
-                Slider(value = prefs.confirmationSeconds.toFloat(), onValueChange = { prefs.confirmationSeconds = it.toInt().coerceIn(1, 10) }, valueRange = 1f..10f, steps = 8)
+                PreferenceSwitch("Require biometric unlock", "Protect operator sessions before deep automation", biometric) { biometric = it; markDirty() }
+                PreferenceSwitch("Always show floating indicator", "Keep operator activity visibly disclosed", indicator) { indicator = it; markDirty() }
+                PreferenceSwitch("Block incognito/private browsing", "Do not inspect or automate private browser sessions", incognito) { incognito = it; markDirty() }
+                PreferenceSwitch("Haptic feedback", "Confirm important operator state changes", haptics) { haptics = it; markDirty() }
+                Text("Confirmation countdown: ${countdown}s", style = MaterialTheme.typography.titleSmall)
+                Slider(value = countdown.toFloat(), onValueChange = { countdown = it.toInt().coerceIn(1, 10); markDirty() }, valueRange = 1f..10f, steps = 8)
             }
         }
         item {
             SettingsSection("Voice controls", "Configure local voice interaction behavior") {
-                PreferenceSwitch("Auto-interrupt while speaking", "Stop speech output when the user starts speaking", prefs.voiceAutoInterruptEnabled) { value -> prefs.voiceAutoInterruptEnabled = value }
+                PreferenceSwitch("Auto-interrupt while speaking", "Stop speech output when the user starts speaking", voiceInterrupt) { voiceInterrupt = it; markDirty() }
                 CenterButton("Voice Center", "Voice model, microphone and local speech status", Icons.Default.Mic) { center = SettingsCenter.VOICE }
             }
         }
         item {
             SettingsSection("Safety controls", "Recommended defaults are enabled") {
-                SettingSwitch("Biometric operator unlock", "Require local biometric authentication before protected operator sessions.", biometric) { biometric = it; prefs.biometricRequired = it }
-                SettingSwitch("Floating operator indicator", "Show the always-visible green/orange/red automation state.", indicator) { indicator = it; prefs.floatingIndicatorEnabled = it }
-                SettingSwitch("Incognito protection", "Refuse automation and audit capture for detected private browsing sessions.", incognito) { incognito = it; prefs.incognitoProtectionEnabled = it }
-                SettingSwitch("Haptic feedback", "Provide local haptic confirmation for operator state changes.", haptics) { haptics = it; prefs.hapticFeedbackEnabled = it }
-                SettingSwitch("Voice auto-interrupt", "Stop speech output when the user starts speaking.", voiceInterrupt) { voiceInterrupt = it; prefs.voiceAutoInterruptEnabled = it }
+                SettingSwitch("Biometric operator unlock", "Require local biometric authentication before protected operator sessions.", biometric) { biometric = it; markDirty() }
+                SettingSwitch("Floating operator indicator", "Show the always-visible green/orange/red automation state.", indicator) { indicator = it; markDirty() }
+                SettingSwitch("Incognito protection", "Refuse automation and audit capture for detected private browsing sessions.", incognito) { incognito = it; markDirty() }
+                SettingSwitch("Haptic feedback", "Provide local haptic confirmation for operator state changes.", haptics) { haptics = it; markDirty() }
+                SettingSwitch("Voice auto-interrupt", "Stop speech output when the user starts speaking.", voiceInterrupt) { voiceInterrupt = it; markDirty() }
                 Text("Confirmation countdown: ${countdown}s", style = MaterialTheme.typography.titleSmall)
-                Slider(value = countdown.toFloat(), onValueChange = { countdown = it.toInt().coerceIn(1, 10); prefs.confirmationSeconds = countdown }, valueRange = 1f..10f, steps = 8)
+                Slider(value = countdown.toFloat(), onValueChange = { countdown = it.toInt().coerceIn(1, 10); markDirty() }, valueRange = 1f..10f, steps = 8)
                 Text("Maximum actions per task: $maxActions", style = MaterialTheme.typography.titleSmall)
-                Slider(value = maxActions.toFloat(), onValueChange = { maxActions = (it.toInt() / 5 * 5).coerceIn(1, 200); prefs.maxActionsPerTask = maxActions }, valueRange = 5f..200f, steps = 39)
+                Slider(value = maxActions.toFloat(), onValueChange = { maxActions = (it.toInt() / 5 * 5).coerceIn(5, 200); markDirty() }, valueRange = 5f..200f, steps = 39)
                 Text("Maximum task runtime: ${maxTaskSeconds}s", style = MaterialTheme.typography.titleSmall)
-                Slider(value = maxTaskSeconds.toFloat(), onValueChange = { maxTaskSeconds = (it.toInt() / 5 * 5).coerceIn(5, 900); prefs.maxTaskSeconds = maxTaskSeconds }, valueRange = 5f..900f, steps = 179)
+                Slider(value = maxTaskSeconds.toFloat(), onValueChange = { maxTaskSeconds = (it.toInt() / 5 * 5).coerceIn(5, 900); markDirty() }, valueRange = 5f..900f, steps = 179)
                 Text("Medium/high-risk actions must remain visible and abortable. Runtime limits stop runaway plans even if a tool misbehaves.", style = MaterialTheme.typography.bodySmall)
             }
         }
-
         item {
             SettingsSection("Appearance", "Choose how the AURA-X interface is rendered") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AuraThemeMode.entries.forEach { mode ->
                         FilterChip(
                             selected = themeMode == mode,
-                            onClick = {
-                                themeMode = mode
-                                prefs.themeMode = mode.name
-                                message = "Theme saved. Restart AURA-X to apply it everywhere."
-                            },
+                            onClick = { themeMode = mode; markDirty() },
                             label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) }
                         )
                     }
@@ -195,7 +239,6 @@ fun SettingsScreen() {
                 Text("System follows Android appearance. Dark and Light force a fixed theme.", style = MaterialTheme.typography.bodySmall)
             }
         }
-
         item {
             SettingsSection("Local AI model", "Tune llama.cpp inference without a cloud endpoint") {
                 Text(if (modelInstalled) "Primary GGUF: installed" else "Primary GGUF: not installed", style = MaterialTheme.typography.titleSmall)
@@ -211,20 +254,19 @@ fun SettingsScreen() {
                 }
                 OutlinedButton(onClick = { center = SettingsCenter.MODELS }, modifier = Modifier.fillMaxWidth()) { Text("Open Model Center") }
                 Text("Temperature: ${"%.2f".format(temperature)}", style = MaterialTheme.typography.titleSmall)
-                Slider(value = temperature, onValueChange = { temperature = it; prefs.modelTemperature = it }, valueRange = 0f..1.5f, steps = 14)
+                Slider(value = temperature, onValueChange = { temperature = it; markDirty() }, valueRange = 0f..1.5f, steps = 14)
                 Text("Max output tokens: $maxTokens", style = MaterialTheme.typography.titleSmall)
-                Slider(value = maxTokens.toFloat(), onValueChange = { maxTokens = (it.toInt() / 32 * 32).coerceIn(32, 2048); prefs.modelMaxTokens = maxTokens }, valueRange = 32f..2048f, steps = 62)
+                Slider(value = maxTokens.toFloat(), onValueChange = { maxTokens = (it.toInt() / 32 * 32).coerceIn(32, 2048); markDirty() }, valueRange = 32f..2048f, steps = 62)
                 Text("Context tokens: $contextTokens", style = MaterialTheme.typography.titleSmall)
-                Slider(value = contextTokens.toFloat(), onValueChange = { contextTokens = (it.toInt() / 256 * 256).coerceIn(256, 4096); prefs.modelContextTokens = contextTokens }, valueRange = 256f..4096f, steps = 14)
+                Slider(value = contextTokens.toFloat(), onValueChange = { contextTokens = (it.toInt() / 256 * 256).coerceIn(256, 4096); markDirty() }, valueRange = 256f..4096f, steps = 14)
             }
         }
-
         item {
             SettingsSection("Voice models", "Keep speech assets local and explicitly selected") {
                 Text("STT language", style = MaterialTheme.typography.titleSmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("auto", "en", "ur", "hi").forEach { lang ->
-                        FilterChip(selected = sttLanguage == lang, onClick = { sttLanguage = lang; prefs.sttLanguage = lang }, label = { Text(lang.uppercase()) })
+                        FilterChip(selected = sttLanguage == lang, onClick = { sttLanguage = lang; markDirty() }, label = { Text(lang.uppercase()) })
                     }
                 }
                 Text(if (prefs.sttModelPath.isBlank()) "Whisper model: not selected" else "Whisper model: configured", style = MaterialTheme.typography.bodySmall)
@@ -281,10 +323,7 @@ fun SettingsScreen() {
 @Composable
 private fun SettingSwitch(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall)
-        }
+        Column(Modifier.weight(1f)) { Text(title, style = MaterialTheme.typography.titleSmall); Text(subtitle, style = MaterialTheme.typography.bodySmall) }
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
@@ -292,21 +331,14 @@ private fun SettingSwitch(title: String, subtitle: String, checked: Boolean, onC
 @Composable
 private fun SettingsSection(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
     ElevatedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = {
-            Text(title, style = MaterialTheme.typography.titleLarge)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall)
-            content()
-        })
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = { Text(title, style = MaterialTheme.typography.titleLarge); Text(subtitle, style = MaterialTheme.typography.bodySmall); content() })
     }
 }
 
 @Composable
 private fun PreferenceSwitch(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall)
-        }
+        Column(Modifier.weight(1f)) { Text(title, style = MaterialTheme.typography.titleSmall); Text(subtitle, style = MaterialTheme.typography.bodySmall) }
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
@@ -314,22 +346,13 @@ private fun PreferenceSwitch(title: String, subtitle: String, checked: Boolean, 
 @Composable
 private fun CenterButton(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(12.dp)) {
-        Icon(icon, contentDescription = null)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
-            Text(title)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall)
-        }
-        Icon(Icons.Default.ChevronRight, contentDescription = null)
+        Icon(icon, contentDescription = null); Spacer(Modifier.width(12.dp)); Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) { Text(title); Text(subtitle, style = MaterialTheme.typography.bodySmall) }; Icon(Icons.Default.ChevronRight, contentDescription = null)
     }
 }
 
 @Composable
 private fun StatusRow(label: String, ready: Boolean) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text(label)
-        AssistChip(onClick = {}, label = { Text(if (ready) "READY" else "NEEDS ACTION") })
-    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text(label); AssistChip(onClick = {}, label = { Text(if (ready) "READY" else "NEEDS ACTION") }) }
 }
 
 private fun policyDescription(value: String): String = when (value) {
