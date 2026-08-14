@@ -331,7 +331,11 @@ private fun SettingSwitch(title: String, subtitle: String, checked: Boolean, onC
 @Composable
 private fun SettingsSection(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
     ElevatedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = { Text(title, style = MaterialTheme.typography.titleLarge); Text(subtitle, style = MaterialTheme.typography.bodySmall); content() })
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, style = MaterialTheme.typography.titleLarge)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall)
+            content()
+        }
     }
 }
 
@@ -346,13 +350,21 @@ private fun PreferenceSwitch(title: String, subtitle: String, checked: Boolean, 
 @Composable
 private fun CenterButton(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(12.dp)) {
-        Icon(icon, contentDescription = null); Spacer(Modifier.width(12.dp)); Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) { Text(title); Text(subtitle, style = MaterialTheme.typography.bodySmall) }; Icon(Icons.Default.ChevronRight, contentDescription = null)
+        Icon(icon, contentDescription = null)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall)
+        }
     }
 }
 
 @Composable
 private fun StatusRow(label: String, ready: Boolean) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text(label); AssistChip(onClick = {}, label = { Text(if (ready) "READY" else "NEEDS ACTION") }) }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text(label)
+        AssistChip(onClick = {}, label = { Text(if (ready) "READY" else "REQUIRED") })
+    }
 }
 
 private fun policyDescription(value: String): String = when (value) {
