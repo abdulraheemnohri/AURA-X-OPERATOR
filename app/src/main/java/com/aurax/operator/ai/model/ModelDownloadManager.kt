@@ -50,17 +50,24 @@ class ModelDownloadManager @Inject constructor(
         val partial = File(dir, "${model.id}.part")
         val destination = File(dir, safeName)
         var start = partial.length()
-        val safetyMargin = 256L * 1024L * 1024L
+
+        if (model.sizeBytes > 0L && start > model.sizeBytes) {
+            partial.delete()
+            start = 0L
+        }
+
+        if (start == model.sizeBytes && model.sizeBytes > 0L && partial.isFile) {
+            finalizeDownloadedModel(model, partial, destination)
+            return dao.getModel(model.id) ?: model.copy(status = "READY", localPath = destination.absolutePath)
+        }
+
+        val safetyMargin = STORAGE_SAFETY_MARGIN_BYTES
         val required = (model.sizeBytes.takeIf { it > 0L } ?: 1L) + safetyMargin
         require(availableStorageBytes() >= required) { "Not enough free storage for model" }
 
         if (model.sizeBytes > 0L) {
             val remaining = (model.sizeBytes - start).coerceAtLeast(0L)
-            require(availableStorageBytes() >= remaining + STORAGE_SAFETY_MARGIN_BYTES) {
-                "Not enough free storage for model download"
-            }
-        } else {
-            require(availableStorageBytes() >= STORAGE_SAFETY_MARGIN_BYTES) {
+            require(availableStorageBytes() >= remaining + safetyMargin) {
                 "Not enough free storage for model download"
             }
         }
@@ -85,22 +92,24 @@ class ModelDownloadManager @Inject constructor(
 
             val append = start > 0L && response == HttpURLConnection.HTTP_PARTIAL
             if (append) {
-                val range = connection.getHeaderField("Content-Range")
-                    ?: error("Server returned 206 without Content-Range")
-                val rangeStart = parseContentRangeStart(range)
-                require(rangeStart == start) {
-                    "Server resumed at byte $rangeStart instead of requested byte $start"
+                val range = parseContentRange(connection.getHeaderField("Content-Range"))
+                require(range.start == start) {
+                    "Server resumed at byte ${range.start} instead of requested byte $start"
+                }
+                val contentLength = connection.contentLengthLong
+                if (contentLength >= 0L) {
+                    require(range.end - range.start + 1L == contentLength) {
+                        "Content-Range length does not match response length"
+                    }
+                }
+                if (model.sizeBytes > 0L && range.total != null) {
+                    require(range.total == model.sizeBytes) {
+                        "Server total ${range.total} does not match expected model size ${model.sizeBytes}"
+                    }
                 }
             } else {
                 start = 0L
                 RandomAccessFile(partial, "rw").use { it.setLength(0L) }
-            }
-
-            val contentLength = connection.contentLengthLong
-            if (model.sizeBytes > 0L && append && contentLength >= 0L) {
-                require(start + contentLength == model.sizeBytes) {
-                    "Resume response size does not match expected model size"
-                }
             }
 
             connection.inputStream.use { input ->
@@ -127,6 +136,22 @@ class ModelDownloadManager @Inject constructor(
         if (model.sizeBytes > 0L) require(partial.length() == model.sizeBytes) {
             "Downloaded size ${partial.length()} does not match expected ${model.sizeBytes}"
         }
+
+        finalizeDownloadedModel(model, partial, destination)
+        return dao.getModel(model.id) ?: model.copy(
+            name = safeName,
+            localPath = destination.absolutePath,
+            sizeBytes = destination.length(),
+            downloadedBytes = destination.length(),
+            status = "READY"
+        )
+    }
+
+    private suspend fun finalizeDownloadedModel(model: ModelEntity, partial: File, destination: File) {
+        require(partial.isFile && partial.length() > 0L) { "Downloaded file is empty" }
+        if (model.sizeBytes > 0L) require(partial.length() == model.sizeBytes) {
+            "Downloaded size ${partial.length()} does not match expected ${model.sizeBytes}"
+        }
         if (model.format.equals("GGUF", true)) {
             require(ModelStatus.validateFile(partial).isValid) { "Downloaded GGUF failed format validation" }
         }
@@ -134,18 +159,15 @@ class ModelDownloadManager @Inject constructor(
             val actual = sha256(partial)
             require(actual.equals(model.sha256, ignoreCase = true)) { "SHA-256 verification failed" }
         }
-
         if (destination.exists()) destination.delete()
         require(partial.renameTo(destination)) { "Unable to finalize downloaded model" }
-        val ready = model.copy(
-            name = safeName,
+        update(model.copy(
+            name = destination.name,
             localPath = destination.absolutePath,
             sizeBytes = destination.length(),
             downloadedBytes = destination.length(),
             status = "READY"
-        )
-        update(ready)
-        return ready
+        ))
     }
 
     private fun openConnection(url: String, start: Long): HttpURLConnection =
@@ -158,10 +180,18 @@ class ModelDownloadManager @Inject constructor(
             setRequestProperty("User-Agent", "AURA-X-Operator/3.4")
         }
 
-    private fun parseContentRangeStart(value: String): Long {
-        val match = Regex("^bytes\\s+(\\d+)-\\d+/\\d+$", RegexOption.IGNORE_CASE).find(value.trim())
+    private data class ContentRange(val start: Long, val end: Long, val total: Long?)
+
+    private fun parseContentRange(value: String?): ContentRange {
+        require(!value.isNullOrBlank()) { "Server returned 206 without Content-Range" }
+        val match = Regex("^bytes\\s+(\\d+)-(\\d+)/(\\d+|\\*)$", RegexOption.IGNORE_CASE).matchEntire(value.trim())
             ?: error("Invalid Content-Range header")
-        return match.groupValues[1].toLongOrNull() ?: error("Invalid Content-Range start")
+        val start = match.groupValues[1].toLongOrNull() ?: error("Invalid Content-Range start")
+        val end = match.groupValues[2].toLongOrNull() ?: error("Invalid Content-Range end")
+        require(end >= start) { "Invalid Content-Range interval" }
+        val total = match.groupValues[3].takeIf { it != "*" }?.toLongOrNull()
+        if (total != null) require(total > end) { "Invalid Content-Range total" }
+        return ContentRange(start, end, total)
     }
 
     private suspend fun update(model: ModelEntity) = withContext(Dispatchers.IO) {
