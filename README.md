@@ -6,7 +6,7 @@ AURA-X Operator is a sideloaded, local-first Android automation assistant built 
 
 ## Current Android target
 
-- **Minimum:** Android 9 / API 28
+- **Minimum:** Android 12 / API 31
 - **Target/Compile:** Android 14 / API 34
 - **ABI:** arm64-v8a debug APK
 - **Java:** 17
@@ -20,7 +20,7 @@ AURA-X Operator is a sideloaded, local-first Android automation assistant built 
 - Sensitive/password/private-browsing detection
 - Blocked security/payment/authentication package protection
 - Automation policies: Observe Only, Suggest Only, Confirm Actions, Full Auto Low Risk
-- Three-second confirmation countdown for policy-controlled actions
+- Configurable confirmation countdown for policy-controlled actions
 - Emergency abort through Volume Down, notification action and floating overlay
 - Persistent operator status indicator
 - Chrome safe automation and sensitive-flow blocking
@@ -39,7 +39,7 @@ AURA-X Operator is a sideloaded, local-first Android automation assistant built 
 - Analytics and safety-event reporting
 - Semantic local memory retrieval infrastructure
 - Guarded tool registry and operator risk classification
-- Android 9+ CI verification and debug APK artifact publishing
+- Android 31+ CI verification and debug APK artifact publishing
 
 ## Model Hub
 
@@ -110,7 +110,7 @@ A filename alone is never treated as proof that a model works. GGUF assets are v
 
 ## Build
 
-Use Android Studio Hedgehog or newer with JDK 17. The repository includes an Android CI workflow that verifies API 34 compilation, API 28 minimum configuration, arm64-v8a native packaging, unit tests and the debug APK artifact.
+Use Android Studio Hedgehog or newer with JDK 17. The repository includes an Android CI workflow that verifies API 34 compilation, API 31 minimum configuration, arm64-v8a native packaging, unit tests and the debug APK artifact.
 
 ```text
 gradle --no-daemon assembleDebug
@@ -129,9 +129,9 @@ gradle --no-daemon testDebugUnitTest
 
 ## APK
 
-GitHub Actions → latest **Android CI** run → **Artifacts** → `aura-x-operator-android9-debug`.
+GitHub Actions → latest **Android CI** run → **Artifacts** → `aura-x-operator-android31plus-debug`.
 
-Install the APK on an Android 9+ arm64 device, then enable AccessibilityService and overlay access from Settings before running operator actions.
+Install the APK on an Android 12+ arm64 device, then enable AccessibilityService and overlay access from Settings before running operator actions.
 
 ## Important limitation
 
