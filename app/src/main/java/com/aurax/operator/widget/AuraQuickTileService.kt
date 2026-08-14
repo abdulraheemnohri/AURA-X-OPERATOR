@@ -17,13 +17,15 @@ class AuraQuickTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
-        if (SafetyController.isAbortRequested()) SafetyController.clearAbort()
-        else SafetyController.requestAbort("Quick Settings tile")
+        if (SafetyController.isAbortRequested()) {
+            SafetyController.clearAbort()
+        } else {
+            // Long-press behavior: open MainActivity
+            startActivityAndCollapse(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            return
+        }
+        SafetyController.requestAbort("Quick Settings tile")
         qsTile?.state = Tile.STATE_ACTIVE
         qsTile?.updateTile()
-    }
-
-    override fun onLongClick() {
-        startActivityAndCollapse(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 }
