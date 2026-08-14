@@ -3,29 +3,41 @@ package com.aurax.operator.core.security
 import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.aurax.operator.core.settings.SettingsRepository
 
 /**
  * Encrypted, local-only preferences for operator configuration.
- * Keep policy/safety controls here so UI and runtime share one source of truth.
+ *
+ * Runtime consumers historically used SettingsRepository while the Settings UI used
+ * SecurePrefs. Keep the encrypted UI store, but mirror overlapping runtime values so
+ * a saved setting is immediately effective across the application.
  */
 class SecurePrefs(context: Context) {
+    private val appContext = context.applicationContext
     private val prefs = EncryptedSharedPreferences.create(
-        context,
+        appContext,
         "aura_secure",
-        MasterKey.Builder(context)
+        MasterKey.Builder(appContext)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build(),
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
     )
+    private val runtime = SettingsRepository(appContext)
 
     var policy: String
         get() = prefs.getString(KEY_POLICY, "CONFIRM_ACTIONS") ?: "CONFIRM_ACTIONS"
-        set(value) = prefs.edit().putString(KEY_POLICY, value).apply()
+        set(value) {
+            prefs.edit().putString(KEY_POLICY, value).apply()
+            runtime.automationPolicy = value
+        }
 
     var biometricRequired: Boolean
         get() = prefs.getBoolean(KEY_BIOMETRIC, true)
-        set(value) = prefs.edit().putBoolean(KEY_BIOMETRIC, value).apply()
+        set(value) {
+            prefs.edit().putBoolean(KEY_BIOMETRIC, value).apply()
+            runtime.biometricLock = value
+        }
 
     var floatingIndicatorEnabled: Boolean
         get() = prefs.getBoolean(KEY_INDICATOR, true)
@@ -33,7 +45,10 @@ class SecurePrefs(context: Context) {
 
     var incognitoProtectionEnabled: Boolean
         get() = prefs.getBoolean(KEY_INCOGNITO, true)
-        set(value) = prefs.edit().putBoolean(KEY_INCOGNITO, value).apply()
+        set(value) {
+            prefs.edit().putBoolean(KEY_INCOGNITO, value).apply()
+            runtime.incognitoRespected = value
+        }
 
     var hapticFeedbackEnabled: Boolean
         get() = prefs.getBoolean(KEY_HAPTICS, true)
@@ -45,19 +60,34 @@ class SecurePrefs(context: Context) {
 
     var confirmationSeconds: Int
         get() = prefs.getInt(KEY_COUNTDOWN, 3).coerceIn(1, 10)
-        set(value) = prefs.edit().putInt(KEY_COUNTDOWN, value.coerceIn(1, 10)).apply()
+        set(value) {
+            val safe = value.coerceIn(1, 10)
+            prefs.edit().putInt(KEY_COUNTDOWN, safe).apply()
+            runtime.confirmationSeconds = safe
+        }
 
     var maxActionsPerTask: Int
         get() = prefs.getInt(KEY_MAX_ACTIONS, 30).coerceIn(1, 200)
-        set(value) = prefs.edit().putInt(KEY_MAX_ACTIONS, value.coerceIn(1, 200)).apply()
+        set(value) {
+            val safe = value.coerceIn(1, 200)
+            prefs.edit().putInt(KEY_MAX_ACTIONS, safe).apply()
+            runtime.maxActionsPerTask = safe
+        }
 
     var maxTaskSeconds: Int
         get() = prefs.getInt(KEY_MAX_TASK_SECONDS, 120).coerceIn(5, 900)
-        set(value) = prefs.edit().putInt(KEY_MAX_TASK_SECONDS, value.coerceIn(5, 900)).apply()
+        set(value) {
+            val safe = value.coerceIn(5, 900)
+            prefs.edit().putInt(KEY_MAX_TASK_SECONDS, safe).apply()
+            runtime.maxTaskSeconds = safe
+        }
 
     var themeMode: String
         get() = prefs.getString(KEY_THEME, "SYSTEM") ?: "SYSTEM"
-        set(value) = prefs.edit().putString(KEY_THEME, value).apply()
+        set(value) {
+            prefs.edit().putString(KEY_THEME, value).apply()
+            runtime.theme = value
+        }
 
     var selectedModelPath: String
         get() = prefs.getString(KEY_MODEL_PATH, "") ?: ""
@@ -65,19 +95,34 @@ class SecurePrefs(context: Context) {
 
     var modelTemperature: Float
         get() = prefs.getFloat(KEY_TEMPERATURE, 0.2f).coerceIn(0f, 1.5f)
-        set(value) = prefs.edit().putFloat(KEY_TEMPERATURE, value.coerceIn(0f, 1.5f)).apply()
+        set(value) {
+            val safe = value.coerceIn(0f, 1.5f)
+            prefs.edit().putFloat(KEY_TEMPERATURE, safe).apply()
+            runtime.temperature = safe
+        }
 
     var modelMaxTokens: Int
         get() = prefs.getInt(KEY_MAX_TOKENS, 512).coerceIn(32, 2048)
-        set(value) = prefs.edit().putInt(KEY_MAX_TOKENS, value.coerceIn(32, 2048)).apply()
+        set(value) {
+            val safe = value.coerceIn(32, 2048)
+            prefs.edit().putInt(KEY_MAX_TOKENS, safe).apply()
+            runtime.maxOutputTokens = safe
+        }
 
     var modelContextTokens: Int
         get() = prefs.getInt(KEY_CONTEXT, 2048).coerceIn(256, 4096)
-        set(value) = prefs.edit().putInt(KEY_CONTEXT, value.coerceIn(256, 4096)).apply()
+        set(value) {
+            val safe = value.coerceIn(256, 4096)
+            prefs.edit().putInt(KEY_CONTEXT, safe).apply()
+            runtime.contextLength = safe
+        }
 
     var sttLanguage: String
         get() = prefs.getString(KEY_STT_LANGUAGE, "auto") ?: "auto"
-        set(value) = prefs.edit().putString(KEY_STT_LANGUAGE, value).apply()
+        set(value) {
+            prefs.edit().putString(KEY_STT_LANGUAGE, value).apply()
+            runtime.preferredLanguage = value
+        }
 
     var sttModelPath: String
         get() = prefs.getString(KEY_STT_MODEL, "") ?: ""

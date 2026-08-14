@@ -22,7 +22,6 @@ class LocalRuntimeManager @Inject constructor(
         loadUnlocked(modelId)
     }
 
-    /** Automatically selects the best installed GGUF LLM using benchmark and recency. */
     suspend fun loadBestAvailable(): Result<ModelEntity> = mutex.withLock {
         val model = modelHub.bestReadyLlm()
             ?: return Result.failure(IllegalStateException("No ready local GGUF LLM is available"))
@@ -45,6 +44,9 @@ class LocalRuntimeManager @Inject constructor(
         }
 
         if (loadedId != modelId) {
+            // Native llama.cpp owns the actual model allocation. Release the previous
+            // model before switching the persisted active model to avoid RAM leaks.
+            llama.unloadNative()
             loadedId?.let { modelHub.markUnloaded(it) }
             modelHub.markLoaded(modelId)
             loadedId = modelId
@@ -53,6 +55,7 @@ class LocalRuntimeManager @Inject constructor(
     }
 
     suspend fun unload() = mutex.withLock {
+        llama.unloadNative()
         loadedId?.let { modelHub.markUnloaded(it) }
         loadedId = null
     }
