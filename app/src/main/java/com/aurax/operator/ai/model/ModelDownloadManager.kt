@@ -49,6 +49,7 @@ class ModelDownloadManager @Inject constructor(
             .take(180)
         val partial = File(dir, "${model.id}.part")
         val destination = File(dir, safeName)
+        var start = partial.length()
         val safetyMargin = 256L * 1024L * 1024L
         val required = (model.sizeBytes.takeIf { it > 0L } ?: 1L) + safetyMargin
         require(availableStorageBytes() >= required) { "Not enough free storage for model" }
@@ -91,6 +92,7 @@ class ModelDownloadManager @Inject constructor(
                     "Server resumed at byte $rangeStart instead of requested byte $start"
                 }
             } else {
+                start = 0L
                 RandomAccessFile(partial, "rw").use { it.setLength(0L) }
             }
 
@@ -146,15 +148,6 @@ class ModelDownloadManager @Inject constructor(
         return ready
     }
 
-    private fun validateContentRange(header: String?, expectedStart: Long) {
-        require(!header.isNullOrBlank()) { "Server did not return Content-Range for resumed download" }
-        val match = Regex("^bytes\\s+(\\d+)-(\\d+)/(\\d+|\\*)$").matchEntire(header.trim())
-            ?: error("Invalid Content-Range header")
-        require(match.groupValues[1].toLong() == expectedStart) {
-            "Content-Range starts at ${match.groupValues[1]}, expected $expectedStart"
-        }
-    }
-
     private fun openConnection(url: String, start: Long): HttpURLConnection =
         (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 20_000
@@ -197,10 +190,6 @@ class ModelDownloadManager @Inject constructor(
         val network = manager.activeNetwork ?: return false
         val capabilities = manager.getNetworkCapabilities(network) ?: return false
         return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
-    }
-
-    private object StatFsCompat {
-        fun availableBytes(file: File): Long = android.os.StatFs(file.absolutePath).availableBytes
     }
 
     private companion object {
