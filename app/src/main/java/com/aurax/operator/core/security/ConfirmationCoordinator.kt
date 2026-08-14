@@ -16,8 +16,9 @@ class ConfirmationCoordinator(
         generation++
         val token = generation
         pendingActions.set(action)
-        OperatorSafety.beginConfirmation(seconds)
-        for (remaining in seconds downTo 1) {
+        val safeSeconds = seconds.coerceIn(1, 10)
+        OperatorSafety.beginConfirmation(safeSeconds)
+        for (remaining in safeSeconds downTo 1) {
             if (token != generation) return false
             AppState.setCountdown(remaining)
             delay(1000)
@@ -27,14 +28,18 @@ class ConfirmationCoordinator(
     }
 
     suspend fun confirm(): PendingActionStore.PendingAction? = mutex.withLock {
+        val action = pendingActions.consume() ?: return@withLock null
         generation++
+        AppState.setCountdown(0)
         AppState.setPhase(OperatorPhase.EXECUTING, "Confirmed")
-        pendingActions.consume()
+        action
     }
 
     suspend fun abort(): PendingActionStore.PendingAction? = mutex.withLock {
+        val action = pendingActions.consume() ?: return@withLock null
         generation++
+        AppState.setCountdown(0)
         AppState.setPhase(OperatorPhase.BLOCKED, "Action aborted")
-        pendingActions.consume()
+        action
     }
 }
