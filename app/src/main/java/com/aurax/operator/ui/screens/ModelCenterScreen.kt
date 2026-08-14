@@ -10,7 +10,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -18,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aurax.operator.ai.model.HuggingFaceFile
 import com.aurax.operator.ai.model.HuggingFaceModel
+import com.aurax.operator.data.entities.ModelEntity
 import com.aurax.operator.ui.viewmodel.HuggingFaceHubViewModel
 import java.util.Locale
 import kotlin.math.max
@@ -43,97 +43,60 @@ fun ModelCenterScreen(viewModel: HuggingFaceHubViewModel = hiltViewModel()) {
             Text("Model Hub", style = MaterialTheme.typography.headlineSmall)
             Text("Browse public Hugging Face repositories, inspect files, queue resumable downloads and manage local models.", style = MaterialTheme.typography.bodyMedium)
         }
-
         item {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Hugging Face search", style = MaterialTheme.typography.titleLarge)
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = viewModel::setQuery,
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text("Model or repository") },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
-                    )
+                    OutlinedTextField(value = query, onValueChange = viewModel::setQuery, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Model or repository") }, leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) })
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        Button(onClick = viewModel::search, enabled = !busy, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Default.Search, contentDescription = null)
-                            Spacer(Modifier.width(8.dp)); Text("Search")
-                        }
+                        Button(onClick = viewModel::search, enabled = !busy, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Search, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Search") }
                         OutlinedButton(onClick = viewModel::search, enabled = !busy) { Icon(Icons.Default.Refresh, contentDescription = "Refresh") }
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Wi-Fi only downloads")
                         Switch(checked = wifiOnly, onCheckedChange = viewModel::setWifiOnly)
                     }
-                    Text("Public Hub browsing does not require a Hugging Face token. Private/gated repositories require authentication support that is not bundled in this public-only client.", style = MaterialTheme.typography.bodySmall)
+                    Text("Public Hub browsing does not require a token. Private/gated repositories are intentionally not treated as public downloads.", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
-
         if (selectedRepo == null) {
             item { Text("Search results (${models.size})", style = MaterialTheme.typography.titleLarge) }
             items(models, key = { it.id }) { model -> HubModelCard(model, onOpen = { viewModel.openRepository(model) }) }
         } else {
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column(Modifier.weight(1f)) {
-                        Text(selectedRepo ?: "Repository", style = MaterialTheme.typography.titleLarge)
-                        Text("Repository files", style = MaterialTheme.typography.bodySmall)
-                    }
+                    Column(Modifier.weight(1f)) { Text(selectedRepo ?: "Repository", style = MaterialTheme.typography.titleLarge); Text("Repository files", style = MaterialTheme.typography.bodySmall) }
                     TextButton(onClick = viewModel::closeRepository) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null); Text("Back") }
                 }
             }
             item {
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                     listOf("GGUF", "SAFETENSORS", "ALL").forEachIndexed { index, filter ->
-                        SegmentedButton(
-                            selected = fileFilter == filter,
-                            onClick = { fileFilter = filter },
-                            shape = SegmentedButtonDefaults.itemShape(index, 3)
-                        ) { Text(filter) }
+                        SegmentedButton(selected = fileFilter == filter, onClick = { fileFilter = filter }, shape = SegmentedButtonDefaults.itemShape(index, 3)) { Text(filter) }
                     }
                 }
             }
-            val visibleFiles = files.filter { file ->
-                when (fileFilter) {
-                    "GGUF" -> file.path.endsWith(".gguf", true)
-                    "SAFETENSORS" -> file.path.endsWith(".safetensors", true)
-                    else -> true
+            val visibleFiles = files.filter { file -> when (fileFilter) { "GGUF" -> file.path.endsWith(".gguf", true); "SAFETENSORS" -> file.path.endsWith(".safetensors", true); else -> true } }
+            if (visibleFiles.isEmpty()) item { Text("No files match this filter.") }
+            items(visibleFiles, key = { it.path }) { file ->
+                HubFileCard(file, wifiOnly) {
+                    models.firstOrNull { it.id == selectedRepo }?.let { viewModel.download(it, file) }
                 }
             }
-            if (visibleFiles.isEmpty()) item { Text("No files match this filter.", style = MaterialTheme.typography.bodyMedium) }
-            items(visibleFiles, key = { it.path }) { file ->
-                HubFileCard(file, wifiOnly = wifiOnly, onDownload = {
-                    val repo = models.firstOrNull { it.id == selectedRepo }
-                    if (repo != null) viewModel.download(repo, file)
-                })
-            }
         }
-
-        item {
-            Text("Local models (${localModels.size})", style = MaterialTheme.typography.titleLarge)
+        item { Text("Local models (${localModels.size})", style = MaterialTheme.typography.titleLarge) }
+        if (localModels.isEmpty()) item { Text("No models are registered locally yet. Search the Hub or import a compatible model from storage.") }
+        else items(localModels, key = { it.id }) { model ->
+            LocalModelCard(
+                model = model,
+                onDownload = { viewModel.downloadLocal(model.id) },
+                onLoad = { viewModel.load(model.id) },
+                onUnload = { viewModel.unload(model.id) },
+                onCancel = { viewModel.cancel(model.id) },
+                onDelete = { viewModel.remove(model.id) }
+            )
         }
-        if (localModels.isEmpty()) {
-            item { Text("No models are registered locally yet. Download a compatible GGUF or import one from storage.") }
-        } else {
-            items(localModels, key = { it.id }) { model ->
-                LocalModelCard(
-                    name = model.displayName,
-                    status = model.status,
-                    format = model.format,
-                    sizeBytes = model.sizeBytes,
-                    loaded = model.isLoaded,
-                    builtIn = model.isBuiltIn,
-                    onLoad = { viewModel.load(model.id) },
-                    onUnload = { viewModel.unload(model.id) },
-                    onCancel = { viewModel.cancel(model.id) },
-                    onDelete = { viewModel.remove(model.id) }
-                )
-            }
-        }
-
         item {
             OutlinedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -167,40 +130,31 @@ private fun HubFileCard(file: HuggingFaceFile, wifiOnly: Boolean, onDownload: ()
             Text(file.path, style = MaterialTheme.typography.titleSmall)
             Text(formatBytes(file.sizeBytes), style = MaterialTheme.typography.bodySmall)
             if (file.sha256.isNotBlank()) Text("SHA-256: ${file.sha256}", style = MaterialTheme.typography.bodySmall)
-            Button(onClick = onDownload, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Default.CloudDownload, contentDescription = null); Spacer(Modifier.width(8.dp)); Text(if (wifiOnly) "Queue Wi-Fi download" else "Download")
-            }
+            Button(onClick = onDownload, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.CloudDownload, contentDescription = null); Spacer(Modifier.width(8.dp)); Text(if (wifiOnly) "Queue Wi-Fi download" else "Download") }
         }
     }
 }
 
 @Composable
-private fun LocalModelCard(
-    name: String,
-    status: String,
-    format: String,
-    sizeBytes: Long,
-    loaded: Boolean,
-    builtIn: Boolean,
-    onLoad: () -> Unit,
-    onUnload: () -> Unit,
-    onCancel: () -> Unit,
-    onDelete: () -> Unit
-) {
+private fun LocalModelCard(model: ModelEntity, onDownload: () -> Unit, onLoad: () -> Unit, onUnload: () -> Unit, onCancel: () -> Unit, onDelete: () -> Unit) {
     ElevatedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(name, style = MaterialTheme.typography.titleMedium)
-            Text("$status · $format · ${formatBytes(sizeBytes)}${if (builtIn) " · built-in" else ""}", style = MaterialTheme.typography.bodySmall)
+            Text(model.displayName, style = MaterialTheme.typography.titleMedium)
+            val progress = if (model.sizeBytes > 0L) ((model.downloadedBytes.toDouble() / model.sizeBytes.toDouble()) * 100.0).coerceIn(0.0, 100.0) else null
+            Text("${model.status} · ${model.format} · ${formatBytes(model.sizeBytes)}${model.quantization.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""}${if (model.isBuiltIn) " · built-in" else ""}", style = MaterialTheme.typography.bodySmall)
+            if (progress != null && model.status == "DOWNLOADING") {
+                LinearProgressIndicator(progress = { (progress / 100.0).toFloat() }, modifier = Modifier.fillMaxWidth())
+                Text("${progress.toInt()}% · ${formatBytes(model.downloadedBytes)} / ${formatBytes(model.sizeBytes)}", style = MaterialTheme.typography.bodySmall)
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 when {
-                    loaded -> OutlinedButton(onClick = onUnload, modifier = Modifier.weight(1f)) { Text("Unload") }
-                    status == "READY" -> Button(onClick = onLoad, modifier = Modifier.weight(1f)) { Text("Load") }
-                    status == "DOWNLOADING" -> OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Stop, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Cancel") }
+                    model.isLoaded -> OutlinedButton(onClick = onUnload, modifier = Modifier.weight(1f)) { Text("Unload") }
+                    model.status == "READY" -> Button(onClick = onLoad, modifier = Modifier.weight(1f)) { Text("Load") }
+                    model.status == "DOWNLOADING" -> OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Stop, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Cancel") }
+                    model.sourceUrl.isNotBlank() && !model.isLoaded -> Button(onClick = onDownload, modifier = Modifier.weight(1f)) { Icon(Icons.Default.CloudDownload, contentDescription = null); Spacer(Modifier.width(6.dp)); Text(if (model.status == "ERROR") "Retry" else "Download") }
                     else -> Spacer(Modifier.weight(1f))
                 }
-                if (!builtIn && !loaded) {
-                    IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = "Delete model") }
-                }
+                if (!model.isBuiltIn && !model.isLoaded) IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = "Delete model") }
             }
         }
     }
