@@ -25,28 +25,35 @@ class ModelDownloadManager @Inject constructor(
     suspend fun download(model: ModelEntity, wifiOnly: Boolean = false): Result<ModelEntity> = runCatching {
         require(model.sourceUrl.isNotBlank()) { "Model has no download URL" }
         if (wifiOnly) require(isWifiConnected()) { "Wi-Fi-only download is enabled" }
+        require(model.sizeBytes <= 0L || model.sizeBytes <= availableStorageBytes()) { "Not enough free storage for model" }
 
         val dir = File(context.filesDir, "models").apply { mkdirs() }
+        val safeName = model.name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "model.bin" }.take(180)
         val partial = File(dir, "${model.id}.part")
-        val destination = File(dir, model.name.substringAfterLast('/'))
-        val start = partial.length()
+        val destination = File(dir, safeName)
+        var start = partial.length()
 
         update(model.copy(status = "DOWNLOADING", downloadedBytes = start))
 
-        val connection = (URL(model.sourceUrl).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 15_000
-            readTimeout = 30_000
-            if (start > 0) setRequestProperty("Range", "bytes=$start-")
-            instanceFollowRedirects = true
-        }
-
+        var connection = openConnection(model.sourceUrl, start)
         try {
-            val response = connection.responseCode
+            var response = connection.responseCode
+            // Some CDNs reject Range after an interrupted transfer. Restart cleanly instead of corrupting the file.
+            if (start > 0L && response == HttpURLConnection.HTTP_REQUESTED_RANGE_NOT_SATISFIABLE) {
+                connection.disconnect()
+                partial.delete()
+                start = 0L
+                update(model.copy(status = "DOWNLOADING", downloadedBytes = 0L))
+                connection = openConnection(model.sourceUrl, 0L)
+                response = connection.responseCode
+            }
             require(response == HttpURLConnection.HTTP_OK || response == HttpURLConnection.HTTP_PARTIAL) {
                 "Download failed with HTTP $response"
             }
-            val append = start > 0 && response == HttpURLConnection.HTTP_PARTIAL
-            if (!append) partial.outputStream().use { it.flush() }
+            val append = start > 0L && response == HttpURLConnection.HTTP_PARTIAL
+            if (!append) {
+                RandomAccessFile(partial, "rw").use { it.setLength(0L) }
+            }
 
             connection.inputStream.use { input ->
                 RandomAccessFile(partial, "rw").use { output ->
@@ -69,6 +76,12 @@ class ModelDownloadManager @Inject constructor(
         }
 
         require(partial.length() > 0L) { "Downloaded file is empty" }
+        if (model.sizeBytes > 0L) require(partial.length() == model.sizeBytes) {
+            "Downloaded size ${partial.length()} does not match expected ${model.sizeBytes}"
+        }
+        if (model.format.equals("GGUF", true)) {
+            require(ModelStatus.validateFile(partial).isValid) { "Downloaded GGUF failed format validation" }
+        }
         if (model.sha256.isNotBlank()) {
             val actual = sha256(partial)
             require(actual.equals(model.sha256, ignoreCase = true)) { "SHA-256 verification failed" }
@@ -77,6 +90,7 @@ class ModelDownloadManager @Inject constructor(
         if (destination.exists()) destination.delete()
         require(partial.renameTo(destination)) { "Unable to finalize downloaded model" }
         val ready = model.copy(
+            name = safeName,
             localPath = destination.absolutePath,
             sizeBytes = destination.length(),
             downloadedBytes = destination.length(),
@@ -87,6 +101,16 @@ class ModelDownloadManager @Inject constructor(
     }.onFailure {
         dao.getModel(model.id)?.let { dao.updateModel(it.copy(status = "ERROR")) }
     }
+
+    private fun openConnection(url: String, start: Long): HttpURLConnection =
+        (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 20_000
+            readTimeout = 60_000
+            instanceFollowRedirects = true
+            if (start > 0L) setRequestProperty("Range", "bytes=$start-")
+            setRequestProperty("Accept", "application/octet-stream")
+            setRequestProperty("User-Agent", "AURA-X-Operator/3.3")
+        }
 
     private suspend fun update(model: ModelEntity) = withContext(Dispatchers.IO) {
         dao.getModel(model.id)?.let { dao.updateModel(model) }
@@ -105,10 +129,16 @@ class ModelDownloadManager @Inject constructor(
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
+    private fun availableStorageBytes(): Long = File(context.filesDir, "models").let { StatFsCompat.availableBytes(it) }
+
     private fun isWifiConnected(): Boolean {
         val manager = context.getSystemService(ConnectivityManager::class.java) ?: return false
         val network = manager.activeNetwork ?: return false
         val capabilities = manager.getNetworkCapabilities(network) ?: return false
         return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+    }
+
+    private object StatFsCompat {
+        fun availableBytes(file: File): Long = android.os.StatFs(file.absolutePath).availableBytes
     }
 }
