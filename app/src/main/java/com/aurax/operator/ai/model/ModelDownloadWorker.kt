@@ -6,6 +6,10 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import java.io.IOException
+import java.net.ConnectException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 @HiltWorker
 class ModelDownloadWorker @AssistedInject constructor(
@@ -24,10 +28,26 @@ class ModelDownloadWorker @AssistedInject constructor(
         return downloader.download(model, wifiOnly).fold(
             onSuccess = { Result.success() },
             onFailure = { error ->
-                if (isStopped) Result.failure()
-                else Result.failure(androidx.work.workDataOf(KEY_ERROR to (error.message ?: "Download failed")))
+                when {
+                    isStopped -> Result.failure()
+                    isTransient(error) -> Result.retry()
+                    else -> Result.failure(androidx.work.workDataOf(KEY_ERROR to (error.message ?: "Download failed")))
+                }
             }
         )
+    }
+
+    private fun isTransient(error: Throwable): Boolean {
+        var current: Throwable? = error
+        while (current != null) {
+            if (current is SocketTimeoutException ||
+                current is ConnectException ||
+                current is UnknownHostException ||
+                current is IOException
+            ) return true
+            current = current.cause
+        }
+        return false
     }
 
     companion object {
