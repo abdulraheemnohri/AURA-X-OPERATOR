@@ -21,15 +21,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.aurax.operator.analytics.AnalyticsEngine
 import com.aurax.operator.data.BackupManager
 import com.aurax.operator.data.database.AuraDatabase
 import com.aurax.operator.memory.KnowledgeBaseManager
 import com.aurax.operator.network.LanServerManager
-import com.aurax.operator.analytics.AnalyticsEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.rememberCoroutineScope
+import java.util.UUID
 
 @Composable
 fun NexusUpgradeCenterScreen(context: Context) {
@@ -42,11 +43,16 @@ fun NexusUpgradeCenterScreen(context: Context) {
     var status by remember { mutableStateOf("Ready") }
     var analytics by remember { mutableStateOf("No snapshot loaded") }
     val kb = remember { KnowledgeBaseManager(context) }
-    val server = remember { LanServerManager(scope = scope, port = prefs.getInt("lan_server_port", 8080), authEnabled = true, token = prefs.getString("lan_auth_token", null) ?: "") }
+    val authToken = remember {
+        prefs.getString("lan_auth_token", null).takeUnless { it.isNullOrBlank() } ?: UUID.randomUUID().toString().also {
+            prefs.edit().putString("lan_auth_token", it).apply()
+        }
+    }
+    val server = remember { LanServerManager(scope = scope, port = prefs.getInt("lan_server_port", 8080), authEnabled = true, token = authToken) }
 
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("NEXUS Upgrade Center", style = MaterialTheme.typography.headlineSmall)
-        Text("New runtime controls added for voice state, local RAG, guarded companion mode, encrypted backup and analytics.")
+        Text("New runtime controls for voice state, local RAG, guarded companion mode, encrypted backup and analytics.")
 
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -55,7 +61,7 @@ fun NexusUpgradeCenterScreen(context: Context) {
                     Text("Wake phrase gate")
                     Switch(checked = wake, onCheckedChange = { wake = it; prefs.edit().putBoolean("wake_word_enabled", it).apply() })
                 }
-                Text("Use the WakeWordDetector/ContinuousConversationManager API with a real STT or TFLite front-end.", style = MaterialTheme.typography.bodySmall)
+                Text("The wake detector is an engine-neutral gate; pair it with a TFLite/audio front-end for always-listening mode.", style = MaterialTheme.typography.bodySmall)
             }
         }
 
