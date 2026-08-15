@@ -46,7 +46,6 @@ class TaskExecutor @Inject constructor(
 
     suspend fun execute(input: String): String {
         if (input.isBlank()) return "Task input is empty."
-        // Every new task is a new operator session; a previous emergency stop must not leak forever.
         OperatorRuntime.begin()
         val taskId = db.dao().addTask(TaskEntity(input = input, status = "RUNNING"))
         val startedAt = System.currentTimeMillis()
@@ -111,26 +110,41 @@ class TaskExecutor @Inject constructor(
                     }
                 }
                 enforceRuntimeLimits()
+
+                val result: ToolResult? = when (step.tool) {
+                    "none" -> null
+                    "android_open" -> {
+                        val targetPackage = step.args["package"] ?: throw IllegalArgumentException("Missing package")
+                        android.openPackage(targetPackage)
+                    }
+                    "android_settings" -> android.openSettings(step.args["section"] ?: "APPS")
+                    "open_url" -> android.openUrl(step.args["url"] ?: throw IllegalArgumentException("Missing URL"))
+                    else -> null
+                }
+
                 if (step.tool == "none") {
                     logs += step.description
                     continue
                 }
-                if (step.tool == "android_open") {
-                    val targetPackage = step.args["package"] ?: throw IllegalArgumentException("Missing package")
-                    if (AccessibilityGuardrails.isBlockedPackage(targetPackage)) throw SecurityException("Opening this protected package is blocked")
-                    val result = android.openPackage(targetPackage)
-                    logs += result.message()
+                if (result != null) {
+                    when (result) {
+                        is ToolResult.Success -> logs += result.message
+                        is ToolResult.Failure -> throw IllegalStateException(result.message)
+                        is ToolResult.Blocked -> throw SecurityException(result.reason)
+                    }
                     actionCount++
-                    db.dao().addAction(OperatorActionEntity(taskId = taskId, packageName = targetPackage, action = step.description, target = step.args.toString(), allowed = true))
+                    db.dao().addAction(OperatorActionEntity(taskId = taskId, packageName = packageName ?: "android", action = step.description, target = step.args.toString(), allowed = true))
                     audit("ACTION_ALLOWED", risk.name, step.description)
+                    delay(50)
                     continue
                 }
-                val tool = registry.get(step.tool) ?: throw UnsupportedOperationException("I don't have a tool for '${step.tool}'. Supported tools: ${registry.listTools().joinToString(", ")}")
+
+                val tool = registry.get(step.tool) ?: throw UnsupportedOperationException("I don't have a tool for '${step.tool}'. Supported tools: android_open, android_settings, open_url, ${registry.listTools().joinToString(", ")}")
                 if (tool.riskLevel == RiskLevel.HIGH) throw SecurityException("High-risk automation is disabled")
-                when (val result = tool.execute(step.args)) {
-                    is ToolResult.Success -> logs += result.message
-                    is ToolResult.Failure -> throw IllegalStateException(result.message)
-                    is ToolResult.Blocked -> throw SecurityException(result.reason)
+                when (val toolResult = tool.execute(step.args)) {
+                    is ToolResult.Success -> logs += toolResult.message
+                    is ToolResult.Failure -> throw IllegalStateException(toolResult.message)
+                    is ToolResult.Blocked -> throw SecurityException(toolResult.reason)
                 }
                 actionCount++
                 db.dao().addAction(OperatorActionEntity(taskId = taskId, packageName = packageName ?: step.tool, action = step.description, target = step.args.toString(), allowed = true))
@@ -167,11 +181,5 @@ class TaskExecutor @Inject constructor(
 
     private suspend fun audit(type: String, reason: String, action: String) {
         db.dao().addSafety(SafetyEventEntity(type = type, reason = reason, packageName = null, action = action))
-    }
-
-    private fun ToolResult.message(): String = when (this) {
-        is ToolResult.Success -> message
-        is ToolResult.Failure -> message
-        is ToolResult.Blocked -> reason
     }
 }
