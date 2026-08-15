@@ -35,13 +35,14 @@ jobs:
           gradle-version: "8.2"
       - name: Toolchain diagnostics
         run: |
-          java -version
-          gradle --version
-          adb version
-          cmake --version
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_NDK=$ANDROID_NDK"
-          echo "CMAKE_BUILD_PARALLEL_LEVEL=$CMAKE_BUILD_PARALLEL_LEVEL"
+          set -o pipefail
+          java -version 2>&1 | tee java-version.txt
+          gradle --version 2>&1 | tee gradle-version.txt
+          adb version 2>&1 | tee adb-version.txt
+          cmake --version 2>&1 | tee cmake-version.txt
+          echo "ANDROID_HOME=$ANDROID_HOME" | tee environment.txt
+          echo "ANDROID_NDK=$ANDROID_NDK" | tee -a environment.txt
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$CMAKE_BUILD_PARALLEL_LEVEL" | tee -a environment.txt
       - name: Verify Android compatibility configuration
         run: |
           grep -q 'compileSdk = 34' app/build.gradle.kts
@@ -54,17 +55,46 @@ jobs:
           test -f app/src/main/cpp/whisper-native.cpp
       - name: Assemble debug APK
         id: build_apk
-        run: gradle --no-daemon --stacktrace --info assembleDebug
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          gradle --no-daemon --stacktrace --info assembleDebug 2>&1 | tee assemble-debug.log
+      - name: Run unit tests
+        id: unit_tests
+        if: ${{ steps.build_apk.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          gradle --no-daemon --stacktrace testDebugUnitTest 2>&1 | tee unit-tests.log
       - name: Verify APK output
         if: ${{ steps.build_apk.outcome == 'success' }}
         run: |
           test -f app/build/outputs/apk/debug/app-debug.apk
           ls -lh app/build/outputs/apk/debug/app-debug.apk
-      - name: Run unit tests
-        if: ${{ steps.build_apk.outcome == 'success' }}
-        run: gradle --no-daemon --stacktrace testDebugUnitTest
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: aura-x-operator-ci-diagnostics-${{ github.run_id }}
+          path: |
+            assemble-debug.log
+            unit-tests.log
+            java-version.txt
+            gradle-version.txt
+            adb-version.txt
+            cmake-version.txt
+            environment.txt
+            app/build/outputs/**/*.apk
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Fail if build failed
+        if: ${{ steps.build_apk.outcome != 'success' }}
+        run: exit 1
+      - name: Fail if unit tests failed
+        if: ${{ steps.unit_tests.outcome != 'success' }}
+        run: exit 1
       - name: Upload debug APK
-        if: ${{ steps.build_apk.outcome == 'success' }}
+        if: ${{ steps.build_apk.outcome == 'success' && steps.unit_tests.outcome == 'success' }}
         uses: actions/upload-artifact@v5
         with:
           name: aura-x-operator-debug
