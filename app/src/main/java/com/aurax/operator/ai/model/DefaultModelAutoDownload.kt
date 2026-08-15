@@ -1,12 +1,14 @@
 package com.aurax.operator.ai.model
 
 import android.content.Context
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -18,7 +20,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class DefaultModelAutoDownload @Inject constructor(
-    private val context: Context,
+    @ApplicationContext private val context: Context,
     private val modelHub: ModelHub
 ) {
     fun isEnabled(): Boolean = prefs().getBoolean(KEY_ENABLED, true)
@@ -44,7 +46,7 @@ class DefaultModelAutoDownload @Inject constructor(
                     .build()
             )
             .setBackoffCriteria(
-                androidx.work.BackoffPolicy.EXPONENTIAL,
+                BackoffPolicy.EXPONENTIAL,
                 30,
                 TimeUnit.SECONDS
             )
