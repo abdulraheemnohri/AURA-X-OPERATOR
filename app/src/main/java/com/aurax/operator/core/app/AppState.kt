@@ -4,7 +4,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-enum class OperatorPhase { IDLE, LISTENING, THINKING, PLANNING, CONFIRMING, EXECUTING, VERIFYING, COMPLETED, BLOCKED, ABORTED, ERROR }
+enum class OperatorPhase {
+    IDLE, LISTENING, UNDERSTANDING, OBSERVING, THINKING, PLANNING, CONFIRMING, COUNTDOWN,
+    EXECUTING, VERIFYING, RECOVERING, COMPLETED, BLOCKED, ABORTED, ERROR
+}
 
 data class OperatorUiState(
     val phase: OperatorPhase = OperatorPhase.IDLE,
@@ -17,6 +20,7 @@ data class OperatorUiState(
     val accessibilityConnected: Boolean = false
 )
 
+/** Central observable state for the closed-loop operator lifecycle. */
 object AppState {
     private val _operator = MutableStateFlow(OperatorUiState())
     val operator: StateFlow<OperatorUiState> = _operator.asStateFlow()
@@ -24,7 +28,8 @@ object AppState {
     fun update(transform: (OperatorUiState) -> OperatorUiState) { _operator.value = transform(_operator.value) }
     fun setPhase(phase: OperatorPhase, message: String = _operator.value.message) { update { it.copy(phase = phase, message = message) } }
     fun setStep(step: String, progress: Float) { update { it.copy(currentStep = step, progress = progress.coerceIn(0f, 1f)) } }
-    fun setCountdown(seconds: Int) { update { it.copy(countdown = seconds) } }
+    fun setTask(taskId: Long?) { update { it.copy(currentTaskId = taskId) } }
+    fun setCountdown(seconds: Int) { update { it.copy(countdown = seconds.coerceAtLeast(0)) } }
     fun requestAbort() { update { it.copy(abortRequested = true, phase = OperatorPhase.ABORTED, message = "Automation aborted") } }
     fun clearAbort() { update { it.copy(abortRequested = false) } }
     fun reset() { _operator.value = OperatorUiState() }

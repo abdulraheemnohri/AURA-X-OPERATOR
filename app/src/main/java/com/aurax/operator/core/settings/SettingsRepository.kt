@@ -67,6 +67,14 @@ class SettingsRepository(context: Context) {
         get() = float("wake_word_sensitivity", 0.7f).coerceIn(0.1f, 1f)
         set(value) = putFloat("wake_word_sensitivity", value.coerceIn(0.1f, 1f))
 
+    var continuousConversationEnabled: Boolean
+        get() = bool("continuous_conversation_enabled", false)
+        set(value) = putBoolean("continuous_conversation_enabled", value)
+
+    var conversationIdleTimeout: Int
+        get() = int("conversation_idle_timeout", 30).coerceIn(5, 300)
+        set(value) = putInt("conversation_idle_timeout", value.coerceIn(5, 300))
+
     var sttModelId: String
         get() = string("stt_model_id", "whisper-base")
         set(value) = putString("stt_model_id", value)
@@ -127,6 +135,10 @@ class SettingsRepository(context: Context) {
         get() = bool("vision_model_enabled", false)
         set(value) = putBoolean("vision_model_enabled", value)
 
+    var visionModelId: String
+        get() = string("vision_model_id", "")
+        set(value) = putString("vision_model_id", value)
+
     var countdownEnabled: Boolean
         get() = bool("countdown_enabled", true)
         set(value) = putBoolean("countdown_enabled", value)
@@ -154,6 +166,14 @@ class SettingsRepository(context: Context) {
     var vectorSearchEnabled: Boolean
         get() = bool("vector_search_enabled", true)
         set(value) = putBoolean("vector_search_enabled", value)
+
+    var ragEnabled: Boolean
+        get() = bool("rag_enabled", true)
+        set(value) = putBoolean("rag_enabled", value)
+
+    var ragTopK: Int
+        get() = int("rag_top_k", 5).coerceIn(1, 20)
+        set(value) = putInt("rag_top_k", value.coerceIn(1, 20))
 
     var embeddingModelId: String
         get() = string("embedding_model_id", "hash-embedding")
@@ -258,6 +278,14 @@ class SettingsRepository(context: Context) {
     var remoteModelUrl: String
         get() = string("remote_model_url", "")
         set(value) = putString("remote_model_url", value)
+
+    var pluginExecutionEnabled: Boolean
+        get() = bool("plugin_execution_enabled", false)
+        set(value) = putBoolean("plugin_execution_enabled", value)
+
+    var developerMode: Boolean
+        get() = bool("developer_mode", false)
+        set(value) = putBoolean("developer_mode", value)
 
     var debugMode: Boolean
         get() = bool("debug_mode", false)

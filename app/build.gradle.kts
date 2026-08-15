@@ -11,10 +11,10 @@ android {
     ndkVersion = "25.2.9519653"
     defaultConfig {
         applicationId = "com.aurax.operator"
-        minSdk = 31
+        minSdk = 28
         targetSdk = 34
-        versionCode = 11
-        versionName = "3.4.0"
+        versionCode = 12
+        versionName = "4.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
         ndk.abiFilters.add("arm64-v8a")
