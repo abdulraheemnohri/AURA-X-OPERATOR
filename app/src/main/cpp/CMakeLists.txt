@@ -48,6 +48,15 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(whisper_cpp)
 
+# Fetch llava.cpp for vision-language models
+FetchContent_Declare(
+    llava_cpp
+    GIT_REPOSITORY https://github.com/ggml-org/llava.cpp.git
+    GIT_TAG main
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(llava_cpp)
+
 add_library(aurax_native SHARED native-lib.cpp)
 target_include_directories(aurax_native PRIVATE ${llama_cpp_SOURCE_DIR}/include)
 target_link_libraries(aurax_native PRIVATE llama log android)
@@ -58,3 +67,11 @@ target_include_directories(aurax_whisper PRIVATE
     ${whisper_cpp_SOURCE_DIR}/ggml/include
 )
 target_link_libraries(aurax_whisper PRIVATE whisper log android)
+
+# Build llava-native as a shared library
+add_library(aurax_llava SHARED llava-native.cpp)
+target_include_directories(aurax_llava PRIVATE
+    ${llava_cpp_SOURCE_DIR}/include
+    ${llava_cpp_SOURCE_DIR}/ggml/include
+)
+target_link_libraries(aurax_llava PRIVATE llava log android)
