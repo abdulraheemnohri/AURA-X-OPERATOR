@@ -31,7 +31,7 @@ fun AnalyticsScreen() {
     var snapshot by remember { mutableStateOf<AnalyticsSnapshot?>(null) }
 
     LaunchedEffect(Unit) {
-        snapshot = AnalyticsEngine(AuraDatabase.get(context)).snapshot()
+        snapshot = AnalyticsEngine(AuraDatabase.get(context).dao()).snapshot()
     }
 
     LazyColumn(
