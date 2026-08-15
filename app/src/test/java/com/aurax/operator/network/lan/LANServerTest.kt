@@ -5,23 +5,27 @@ import com.aurax.operator.ai.model.ModelHub
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
-import org.mockito.Mockito.mock
-import org.mockito.Mockito.`when`
+import org.mockito.Mock
+import org.mockito.MockitoAnnotations
+import org.mockito.kotlin.whenever
 
 /**
  * Unit tests for LANServer.
  */
 class LANServerTest {
     
-    private lateinit var lanServer: LANServer
+    @Mock
     private lateinit var mockContext: Context
+    
+    @Mock
     private lateinit var mockModelHub: ModelHub
+    
+    private lateinit var lanServer: LANServer
     private lateinit var mockSettings: LANSettings
     
     @Before
     fun setup() {
-        mockContext = mock(Context::class.java)
-        mockModelHub = mock(ModelHub::class.java)
+        MockitoAnnotations.openMocks(this)
         mockSettings = LANSettings(
             enabled = true,
             port = 8080,
@@ -60,14 +64,14 @@ class LANServerTest {
     fun `test LANServer processRequest for models`() {
         // Given
         val models = listOf(
-            com.aurax.operator.ai.model.ModelEntity(
+            ModelEntity(
                 id = 1,
                 name = "Qwen2.5-0.5B-Instruct",
                 path = "/path/to/model.gguf",
                 status = "READY"
             )
         )
-        `when`(mockModelHub.getInstalledModels()).thenReturn(models)
+        whenever(mockModelHub.getInstalledModels()).thenReturn(models)
         
         // When
         val response = lanServer.processRequest("GET /models")

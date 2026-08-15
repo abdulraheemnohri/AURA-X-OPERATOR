@@ -49,29 +49,72 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(whisper_cpp)
 
 # Fetch llava.cpp for vision-language models
-FetchContent_Declare(
-    llava_cpp
-    GIT_REPOSITORY https://github.com/ggml-org/llava.cpp.git
-    GIT_TAG main
-    GIT_SHALLOW TRUE
-)
-FetchContent_MakeAvailable(llava_cpp)
+# Note: llava.cpp is still evolving, so this is commented out for now.
+# Uncomment once llava.cpp stabilizes and is ready for Android.
+# FetchContent_Declare(
+#     llava_cpp
+#     GIT_REPOSITORY https://github.com/ggml-org/llava.cpp.git
+#     GIT_TAG main
+#     GIT_SHALLOW TRUE
+# )
+# FetchContent_MakeAvailable(llava_cpp)
 
-add_library(aurax_native SHARED native-lib.cpp)
-target_include_directories(aurax_native PRIVATE ${llama_cpp_SOURCE_DIR}/include)
-target_link_libraries(aurax_native PRIVATE llama log android)
-
-add_library(aurax_whisper SHARED whisper-native.cpp)
-target_include_directories(aurax_whisper PRIVATE
-    ${whisper_cpp_SOURCE_DIR}/include
-    ${whisper_cpp_SOURCE_DIR}/ggml/include
+# Build llama.cpp as a static library
+add_library(
+    llama-lib
+    STATIC
+    native-lib.cpp
 )
-target_link_libraries(aurax_whisper PRIVATE whisper log android)
+
+target_link_libraries(
+    llama-lib
+    ${llama_cpp_SOURCE_DIR}/libllama.a
+    log
+    android
+)
+
+# Build whisper-native as a static library
+add_library(
+    whisper-lib
+    STATIC
+    whisper-native.cpp
+)
+
+target_link_libraries(
+    whisper-lib
+    ${whisper_cpp_SOURCE_DIR}/libwhisper.a
+    log
+    android
+)
 
 # Build llava-native as a shared library
-add_library(aurax_llava SHARED llava-native.cpp)
-target_include_directories(aurax_llava PRIVATE
-    ${llava_cpp_SOURCE_DIR}/include
-    ${llava_cpp_SOURCE_DIR}/ggml/include
+# Note: This is a placeholder for now. Once llava.cpp is integrated,
+# we will link against the actual llava library.
+add_library(
+    aurax_llava
+    SHARED
+    llava-native.cpp
 )
-target_link_libraries(aurax_llava PRIVATE llava log android)
+
+target_link_libraries(
+    aurax_llava
+    log
+    android
+    # Uncomment once llava.cpp is integrated:
+    # ${llava_cpp_SOURCE_DIR}/libllava.a
+)
+
+# Build the main native library
+add_library(
+    aurax_native
+    SHARED
+    # No source files here; we link the static libraries
+)
+
+target_link_libraries(
+    aurax_native
+    llama-lib
+    whisper-lib
+    log
+    android
+)
