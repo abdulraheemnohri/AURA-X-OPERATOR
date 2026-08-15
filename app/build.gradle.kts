@@ -58,5 +58,10 @@ dependencies {
     // Porcupine wake word detection (placeholder)
     // implementation("ai.picovoice:porcupine-android:3.0.0")
     
+    // Mockito for unit tests
+    testImplementation("org.mockito:mockito-core:5.3.1")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:5.1.0")
+    testImplementation("org.mockito:mockito-inline:5.3.1")
+    
     testImplementation("junit:junit:4.13.2")
 }
