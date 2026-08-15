@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.aurax.operator.ai.model.DefaultModelAutoDownload
 import com.aurax.operator.ai.model.ModelHub
 import com.aurax.operator.data.AppLogStore
 import com.aurax.operator.data.database.AuraDatabase
@@ -20,6 +21,7 @@ class AuraApplication : Application(), Configuration.Provider {
     val db by lazy { AuraDatabase.get(this) }
 
     @Inject lateinit var modelHub: ModelHub
+    @Inject lateinit var defaultModelAutoDownload: DefaultModelAutoDownload
     @Inject lateinit var workerFactory: HiltWorkerFactory
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -40,8 +42,12 @@ class AuraApplication : Application(), Configuration.Provider {
         AppLogStore.record(this, "INFO", "APP", "AURA-X application started")
         OperatorAudit.init(this)
         applicationScope.launch {
-            runCatching { modelHub.seedBuiltIns() }
-                .onFailure { AppLogStore.recordException(this@AuraApplication, "MODEL_HUB", it) }
+            runCatching {
+                modelHub.seedBuiltIns()
+                defaultModelAutoDownload.scheduleIfMissingOrInvalid()
+            }.onFailure {
+                AppLogStore.recordException(this@AuraApplication, "MODEL_AUTO_DOWNLOAD", it)
+            }
         }
     }
 }
