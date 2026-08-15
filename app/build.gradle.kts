@@ -51,5 +51,12 @@ dependencies {
     ksp("com.google.dagger:hilt-compiler:2.50")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.core:core-ktx:1.12.0")
+    
+    // QR Code generation and scanning
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    
+    // Porcupine wake word detection (placeholder)
+    // implementation("ai.picovoice:porcupine-android:3.0.0")
+    
     testImplementation("junit:junit:4.13.2")
 }
