@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
+    id("io.gitlab.arturbosch.detekt")
 }
 
 android {
@@ -25,6 +26,14 @@ android {
     buildFeatures { compose = true; buildConfig = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.8" }
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
+}
+
+// Configure detekt for static analysis
+detekt {
+    toolVersion = "1.23.6"
+    config = files("detekt.yml")
+    buildUponDefaultConfig = true
+    ignoreFailures = false
 }
 
 dependencies {
@@ -64,4 +73,7 @@ dependencies {
     testImplementation("org.mockito:mockito-inline:5.3.1")
     
     testImplementation("junit:junit:4.13.2")
+    
+    // Detekt (static analysis)
+    detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.6")
 }
