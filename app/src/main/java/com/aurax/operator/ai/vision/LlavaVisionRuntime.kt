@@ -6,6 +6,8 @@ import android.util.Log
 /**
  * Implementation of VisionRuntime using llava.cpp for multimodal vision-language models.
  * This is a placeholder for the actual JNI bridge to llava.cpp.
+ * Note: llava.cpp is still evolving, so this implementation will be updated
+ * once the llava.cpp API stabilizes.
  */
 class LlavaVisionRuntime : VisionRuntime {
     
@@ -61,16 +63,33 @@ class LlavaVisionRuntime : VisionRuntime {
         status = VisionRuntimeStatus.NOT_LOADED
     }
     
-    override fun getStatus(): VisionRuntimeStatus = status
+    override fun getStatus(): VisionRuntimeStatus {
+        return try {
+            when (nativeGetStatus()) {
+                0 -> VisionRuntimeStatus.NOT_LOADED
+                1 -> VisionRuntimeStatus.LOADING
+                2 -> VisionRuntimeStatus.READY
+                else -> VisionRuntimeStatus.ERROR
+            }
+        } catch (e: Exception) {
+            Log.e("LlavaVisionRuntime", "Error getting status: ${e.message}")
+            VisionRuntimeStatus.ERROR
+        }
+    }
     
-    // Native JNI methods (to be implemented in llava-native.cpp)
+    // Native JNI methods (implemented in llava-native.cpp)
     private external fun nativeLoad(modelPath: String): Boolean
     private external fun nativeAnalyze(bitmap: Bitmap, prompt: String?): VisionResult
     private external fun nativeUnload()
+    private external fun nativeGetStatus(): Int
     
     companion object {
         init {
-            System.loadLibrary("llava-native")
+            try {
+                System.loadLibrary("aurax_llava")
+            } catch (e: UnsatisfiedLinkError) {
+                Log.e("LlavaVisionRuntime", "Failed to load llava-native library: ${e.message}")
+            }
         }
     }
 }
