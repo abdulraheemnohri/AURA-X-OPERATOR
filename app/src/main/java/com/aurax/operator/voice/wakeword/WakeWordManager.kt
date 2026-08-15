@@ -4,8 +4,9 @@ import android.content.Context
 import android.util.Log
 
 /**
- * Manages wake word detection using Porcupine or similar libraries.
+ * Manages wake word detection using Porcupine.
  * Supports low-power mode and configurable sensitivity.
+ * Note: Porcupine integration is commented out until the dependency is added.
  */
 class WakeWordManager(
     private val context: Context,
@@ -14,7 +15,10 @@ class WakeWordManager(
 ) {
     
     private var isListening = false
-    private var porcupine: Any? = null // Placeholder for Porcupine instance
+    
+    // Porcupine instance (commented out until dependency is added)
+    // private var porcupine: Porcupine? = null
+    private var porcupine: Any? = null // Placeholder
     
     /**
      * Starts listening for the wake word.
@@ -24,14 +28,17 @@ class WakeWordManager(
         
         try {
             // Initialize Porcupine with the wake word model
+            // Uncomment the following lines once Porcupine is added:
             // porcupine = Porcupine.Builder()
             //     .setKeywordPath(settings.keywordPath)
             //     .setSensitivity(settings.sensitivity)
+            //     .setLowPowerMode(settings.lowPowerMode)
             //     .build(context)
-            
+            // 
             // porcupine?.start { onDetection() }
             
-            Log.d("WakeWordManager", "Wake word detection started")
+            // Placeholder: Simulate wake word detection for testing
+            Log.d("WakeWordManager", "Wake word detection started (placeholder)")
             isListening = true
         } catch (e: Exception) {
             Log.e("WakeWordManager", "Failed to start wake word detection: ${e.message}")
@@ -44,6 +51,7 @@ class WakeWordManager(
      */
     fun stopListening() {
         try {
+            // Uncomment the following line once Porcupine is added:
             // porcupine?.stop()
             porcupine = null
             Log.d("WakeWordManager", "Wake word detection stopped")
@@ -73,14 +81,24 @@ class WakeWordManager(
         }
         
         // Update settings and restart
+        // Uncomment the following lines once Porcupine is added:
         // porcupine = Porcupine.Builder()
         //     .setKeywordPath(newSettings.keywordPath)
         //     .setSensitivity(newSettings.sensitivity)
+        //     .setLowPowerMode(newSettings.lowPowerMode)
         //     .build(context)
         
         if (isListening) {
             startListening()
         }
+    }
+    
+    /**
+     * Releases resources.
+     */
+    fun release() {
+        stopListening()
+        porcupine = null
     }
 }
 
