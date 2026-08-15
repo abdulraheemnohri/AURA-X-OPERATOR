@@ -29,6 +29,15 @@ class ConversationManager(
     private var state = State.IDLE
     private var isBargeInEnabled = false
     
+    init {
+        // Set up barge-in callback
+        if (ttsEngine is AndroidTTSEngine) {
+            (ttsEngine as AndroidTTSEngine).setOnBargeIn {
+                handleBargeIn()
+            }
+        }
+    }
+    
     /**
      * Starts continuous conversation mode.
      */
@@ -37,6 +46,9 @@ class ConversationManager(
             Log.d("ConversationManager", "Continuous conversation is disabled")
             return
         }
+        
+        // Set barge-in enabled based on settings
+        setBargeInEnabled(settings.bargeInEnabled)
         
         wakeWordManager.startListening {
             onWakeWordDetected()
@@ -105,7 +117,9 @@ class ConversationManager(
      */
     private fun speakResponse(response: String) {
         state = State.SPEAKING
-        ttsEngine.speak(response)
+        CoroutineScope(Dispatchers.Main).launch {
+            ttsEngine.speak(response)
+        }
     }
     
     /**
@@ -142,12 +156,21 @@ class ConversationManager(
         }
         
         // Update settings
-        // wakeWordManager.updateSettings(newSettings.wakeWordSettings)
+        wakeWordManager.updateSettings(newSettings.wakeWordSettings)
+        setBargeInEnabled(newSettings.bargeInEnabled)
         
         // Restart if needed
         if (newSettings.continuousConversationEnabled) {
             start()
         }
+    }
+    
+    /**
+     * Releases resources.
+     */
+    fun release() {
+        stop()
+        wakeWordManager.release()
     }
 }
 
