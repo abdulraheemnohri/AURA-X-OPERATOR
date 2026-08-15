@@ -1,9 +1,11 @@
 package com.aurax.operator.app
 
 import android.app.Application
+import android.util.Log
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.aurax.operator.ai.model.ModelHub
+import com.aurax.operator.data.AppLogStore
 import com.aurax.operator.data.database.AuraDatabase
 import com.aurax.operator.operator.OperatorAudit
 import dagger.hilt.android.HiltAndroidApp
@@ -25,12 +27,21 @@ class AuraApplication : Application(), Configuration.Provider {
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
-            .setMinimumLoggingLevel(android.util.Log.INFO)
+            .setMinimumLoggingLevel(Log.INFO)
             .build()
 
     override fun onCreate() {
         super.onCreate()
+        val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            AppLogStore.recordException(this, "UNCAUGHT", throwable)
+            previousHandler?.uncaughtException(thread, throwable)
+        }
+        AppLogStore.record(this, "INFO", "APP", "AURA-X application started")
         OperatorAudit.init(this)
-        applicationScope.launch { modelHub.seedBuiltIns() }
+        applicationScope.launch {
+            runCatching { modelHub.seedBuiltIns() }
+                .onFailure { AppLogStore.recordException(this@AuraApplication, "MODEL_HUB", it) }
+        }
     }
 }
