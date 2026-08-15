@@ -77,7 +77,7 @@ class ModelDownloadManager @Inject constructor(
         var connection = openConnection(model.sourceUrl, start)
         try {
             var response = connection.responseCode
-            if (start > 0L && response == HttpURLConnection.HTTP_REQUESTED_RANGE_NOT_SATISFIABLE) {
+            if (start > 0L && response == 416) {
                 connection.disconnect()
                 partial.delete()
                 start = 0L
