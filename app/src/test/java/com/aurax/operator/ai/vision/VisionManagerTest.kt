@@ -7,25 +7,32 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
-import org.mockito.Mockito.mock
-import org.mockito.Mockito.`when`
+import org.mockito.Mock
+import org.mockito.MockitoAnnotations
+import org.mockito.kotlin.any
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 
 /**
  * Unit tests for VisionManager.
  */
 class VisionManagerTest {
     
-    private lateinit var visionManager: VisionManager
+    @Mock
     private lateinit var mockVisionRuntime: VisionRuntime
+    
+    @Mock
     private lateinit var mockOcrEngine: OcrEngine
+    
+    @Mock
     private lateinit var mockAccessibilityTree: AccessibilityTree
+    
+    private lateinit var visionManager: VisionManager
     
     @Before
     fun setup() {
-        mockVisionRuntime = mock(VisionRuntime::class.java)
-        mockOcrEngine = mock(OcrEngine::class.java)
-        mockAccessibilityTree = mock(AccessibilityTree::class.java)
-        
+        MockitoAnnotations.openMocks(this)
         visionManager = VisionManager(
             mockVisionRuntime,
             mockOcrEngine,
@@ -45,10 +52,10 @@ class VisionManagerTest {
         val ocrText = "Test OCR text"
         val accessibilityTree = "Test accessibility tree"
         
-        `when`(mockVisionRuntime.isAvailable()).thenReturn(true)
-        `when`(mockVisionRuntime.analyze(ImageInput(bitmap, null))).thenReturn(visionResult)
-        `when`(mockOcrEngine.extractText(bitmap)).thenReturn(ocrText)
-        `when`(mockAccessibilityTree.getTree()).thenReturn(accessibilityTree)
+        whenever(mockVisionRuntime.isAvailable()).thenReturn(true)
+        whenever(mockVisionRuntime.analyze(any())).thenReturn(visionResult)
+        whenever(mockOcrEngine.extractText(any())).thenReturn(ocrText)
+        whenever(mockAccessibilityTree.getTree()).thenReturn(accessibilityTree)
         
         // When
         val screenContext = visionManager.analyzeScreen(bitmap)
@@ -57,6 +64,11 @@ class VisionManagerTest {
         assertEquals(visionResult, screenContext.vision)
         assertEquals(ocrText, screenContext.ocr)
         assertEquals(accessibilityTree, screenContext.accessibilityTree)
+        
+        verify(mockVisionRuntime).isAvailable()
+        verify(mockVisionRuntime).analyze(eq(ImageInput(bitmap, null)))
+        verify(mockOcrEngine).extractText(eq(bitmap))
+        verify(mockAccessibilityTree).getTree()
     }
     
     @Test
@@ -66,9 +78,9 @@ class VisionManagerTest {
         val ocrText = "Test OCR text"
         val accessibilityTree = "Test accessibility tree"
         
-        `when`(mockVisionRuntime.isAvailable()).thenReturn(false)
-        `when`(mockOcrEngine.extractText(bitmap)).thenReturn(ocrText)
-        `when`(mockAccessibilityTree.getTree()).thenReturn(accessibilityTree)
+        whenever(mockVisionRuntime.isAvailable()).thenReturn(false)
+        whenever(mockOcrEngine.extractText(any())).thenReturn(ocrText)
+        whenever(mockAccessibilityTree.getTree()).thenReturn(accessibilityTree)
         
         // When
         val screenContext = visionManager.analyzeScreen(bitmap)
@@ -77,31 +89,38 @@ class VisionManagerTest {
         assertEquals(null, screenContext.vision)
         assertEquals(ocrText, screenContext.ocr)
         assertEquals(accessibilityTree, screenContext.accessibilityTree)
+        
+        verify(mockVisionRuntime).isAvailable()
+        verify(mockVisionRuntime).analyze(any()) // Should not be called
+        verify(mockOcrEngine).extractText(eq(bitmap))
+        verify(mockAccessibilityTree).getTree()
     }
     
     @Test
     fun `test VisionManager isVisionAvailable`() {
         // Given
-        `when`(mockVisionRuntime.isAvailable()).thenReturn(true)
+        whenever(mockVisionRuntime.isAvailable()).thenReturn(true)
         
         // When
         val isAvailable = visionManager.isVisionAvailable()
         
         // Then
         assertEquals(true, isAvailable)
+        verify(mockVisionRuntime).isAvailable()
     }
     
     @Test
     fun `test VisionManager loadVisionModel`() {
         // Given
         val modelPath = "test/model.gguf"
-        `when`(mockVisionRuntime.load(modelPath)).thenReturn(true)
+        whenever(mockVisionRuntime.load(modelPath)).thenReturn(true)
         
         // When
         val isLoaded = visionManager.loadVisionModel(modelPath)
         
         // Then
         assertEquals(true, isLoaded)
+        verify(mockVisionRuntime).load(modelPath)
     }
     
     @Test
@@ -109,7 +128,30 @@ class VisionManagerTest {
         // When
         visionManager.unloadVisionModel()
         
-        // Then (no exception should be thrown)
-        assertEquals(true, true)
+        // Then
+        verify(mockVisionRuntime).unload()
     }
+    
+    @Test
+    fun `test VisionManager getVisionStatus`() {
+        // Given
+        val expectedStatus = VisionRuntimeStatus.READY
+        whenever(mockVisionRuntime.getStatus()).thenReturn(expectedStatus)
+        
+        // When
+        val status = visionManager.getVisionStatus()
+        
+        // Then
+        assertEquals(expectedStatus, status)
+        verify(mockVisionRuntime).getStatus()
+    }
+}
+
+// Mock interfaces for testing
+interface OcrEngine {
+    fun extractText(bitmap: Bitmap): String
+}
+
+interface AccessibilityTree {
+    fun getTree(): String
 }
