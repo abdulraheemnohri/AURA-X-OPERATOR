@@ -5,17 +5,41 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class NexusSettingsPolicyTest {
-    @Test fun invalidRangesAreRejected() {
-        val r = NexusSettingsPolicy.validate(NexusSettingsPolicy.Settings(wakeWordSensitivity = 2f, ragTopK = 0, maxAutomationSteps = 0))
-        assertFalse(r.isValid)
-        assertTrue(r.errors.size == 3)
+    @Test
+    fun invalidRangesAreRejected() {
+        val result = NexusSettingsPolicy.validate(
+            NexusSettingsPolicy.Settings(
+                wakeWordSensitivity = 2f,
+                ragTopK = 0,
+                maxAutomationSteps = 0
+            )
+        )
+        assertFalse(result.isValid)
+        assertTrue(result.errors.size == 3)
     }
-    @Test fun unsafeNetworkConfigurationIsRejected() {
-        val r = NexusSettingsPolicy.validate(NexusSettingsPolicy.Settings(networkToolsEnabled = true, confirmationRequiredForConsequentialActions = false))
-        assertFalse(r.isValid)
+
+    @Test
+    fun unsafeNetworkConfigurationIsRejected() {
+        val result = NexusSettingsPolicy.validate(
+            NexusSettingsPolicy.Settings(
+                networkToolsEnabled = true,
+                confirmationRequiredForConsequentialActions = false
+            )
+        )
+        assertFalse(result.isValid)
     }
-    @Test fun sanitizeClampsValues() {
-        val s = NexusSettingsPolicy.sanitize(NexusSettingsPolicy.Settings(wakeWordSensitivity = -1f, ragTopK = 999, maxAutomationSteps = 999))
-        assertTrue(s.wakeWordSensitivity == 0f && s.ragTopK == 50 && s.maxAutomationSteps == 100)
+
+    @Test
+    fun sanitizeClampsValuesForPersistence() {
+        val sanitized = NexusSettingsPolicy.sanitize(
+            NexusSettingsPolicy.Settings(
+                wakeWordSensitivity = -1f,
+                ragTopK = 999,
+                maxAutomationSteps = 999
+            )
+        )
+        assertTrue(sanitized.wakeWordSensitivity == 0f)
+        assertTrue(sanitized.ragTopK == 50)
+        assertTrue(sanitized.maxAutomationSteps == 100)
     }
 }
