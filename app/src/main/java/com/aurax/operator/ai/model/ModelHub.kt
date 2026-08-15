@@ -151,6 +151,10 @@ class ModelHub @Inject constructor(
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
+
+    companion object {
+        const val DEFAULT_MODEL_ID = "qwen2.5-0.5b-instruct-q4km"
+    }
 }
 
 data class ImportedModelMetadata(
