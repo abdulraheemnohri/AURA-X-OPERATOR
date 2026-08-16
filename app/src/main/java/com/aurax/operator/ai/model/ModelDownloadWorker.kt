@@ -1,6 +1,7 @@
 package com.aurax.operator.ai.model
 
 import android.content.Context
+import android.os.BatteryManager
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -22,19 +23,38 @@ class ModelDownloadWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         val modelId = inputData.getString(KEY_MODEL_ID) ?: return Result.failure()
         val wifiOnly = inputData.getBoolean(KEY_WIFI_ONLY, false)
+        val autoRetry = inputData.getBoolean(KEY_AUTO_RETRY, true)
+        val maxRetries = inputData.getInt(KEY_MAX_RETRIES, 3).coerceIn(0, 10)
         val model = hub.get(modelId) ?: return Result.failure()
         if (isStopped) return Result.failure()
+
+        // WorkManager's BatteryNotLow constraint is intentionally supplemented
+        // with a deterministic 20% floor so a long first-run download does not
+        // consume the last portion of the battery on devices that report a
+        // precise percentage.
+        val battery = applicationContext.getSystemService(BatteryManager::class.java)
+        val percent = battery?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+        if (percent in 0..19 && !isCharging()) {
+            return Result.retry()
+        }
 
         return downloader.download(model, wifiOnly).fold(
             onSuccess = { Result.success() },
             onFailure = { error ->
                 when {
                     isStopped -> Result.failure()
+                    !autoRetry -> Result.failure(workDataOf(KEY_ERROR to (error.message ?: "Download failed")))
+                    runAttemptCount >= maxRetries -> Result.failure(workDataOf(KEY_ERROR to (error.message ?: "Download failed after retries")))
                     isTransient(error) -> Result.retry()
-                    else -> Result.failure(androidx.work.workDataOf(KEY_ERROR to (error.message ?: "Download failed")))
+                    else -> Result.failure(workDataOf(KEY_ERROR to (error.message ?: "Download failed")))
                 }
             }
         )
+    }
+
+    private fun isCharging(): Boolean {
+        val battery = applicationContext.getSystemService(BatteryManager::class.java) ?: return false
+        return battery.isCharging
     }
 
     private fun isTransient(error: Throwable): Boolean {
@@ -53,6 +73,9 @@ class ModelDownloadWorker @AssistedInject constructor(
     companion object {
         const val KEY_MODEL_ID = "model_id"
         const val KEY_WIFI_ONLY = "wifi_only"
+        const val KEY_AUTO_RETRY = "auto_retry"
+        const val KEY_MAX_RETRIES = "max_retries"
+        const val KEY_SPEED_LIMIT_KBPS = "speed_limit_kbps"
         const val KEY_ERROR = "error"
     }
 }
