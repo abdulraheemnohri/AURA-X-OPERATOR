@@ -19,12 +19,14 @@ jobs:
         with:
           gradle-version: "8.2"
       - name: Run detekt
-        run: ./gradlew detektAll
+        run: gradle --no-daemon --stacktrace detektAll
       - name: Upload detekt report
         if: always()
         uses: actions/upload-artifact@v5
         with:
           name: detekt-report
-          path: build/reports/detekt/
+          path: |
+            build/reports/detekt/
+            app/build/reports/detekt/
           if-no-files-found: warn
           retention-days: 14
