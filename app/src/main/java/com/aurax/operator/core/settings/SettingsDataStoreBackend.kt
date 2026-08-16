@@ -33,6 +33,7 @@ class SettingsDataStoreBackend(context: Context) {
         }
     }
 
+    fun contains(key: String): Boolean = cache.value.containsKey(key)
     fun getBoolean(key: String, default: Boolean) = (cache.value[key] as? Boolean) ?: default
     fun getInt(key: String, default: Int) = (cache.value[key] as? Int) ?: default
     fun getFloat(key: String, default: Float) = (cache.value[key] as? Float) ?: default
