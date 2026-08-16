@@ -4,92 +4,97 @@ import android.graphics.Bitmap
 import android.util.Log
 
 /**
- * Implementation of VisionRuntime using llava.cpp for multimodal vision-language models.
- * This is a placeholder for the actual JNI bridge to llava.cpp.
- * Note: llava.cpp is still evolving, so this implementation will be updated
- * once the llava.cpp API stabilizes.
+ * JNI boundary for llava.cpp.
+ *
+ * The native bridge is intentionally conservative: until a real llava.cpp
+ * runtime is linked, load() returns false and analyze() reports the capability
+ * as unavailable. No fabricated labels or descriptions are ever returned.
  */
 class LlavaVisionRuntime : VisionRuntime {
-    
     private var isLoaded = false
     private var status = VisionRuntimeStatus.NOT_LOADED
-    
+
     override suspend fun analyze(imageInput: ImageInput): VisionResult {
         if (!isLoaded) {
             return VisionResult(
                 description = "",
                 labels = emptyList(),
                 confidence = 0f,
-                error = "Vision model not loaded"
+                error = "Vision runtime is not bundled; install a compatible vision runtime first"
             )
         }
-        
-        try {
-            // Call native llava.cpp JNI methods
-            return nativeAnalyze(imageInput.bitmap, imageInput.prompt)
+
+        return try {
+            nativeAnalyze(imageInput.bitmap, imageInput.prompt)
+                ?: VisionResult(
+                    description = "",
+                    labels = emptyList(),
+                    confidence = 0f,
+                    error = "Vision runtime returned no result"
+                )
         } catch (e: Exception) {
-            Log.e("LlavaVisionRuntime", "Error analyzing image: ${e.message}")
-            return VisionResult(
+            Log.e("LlavaVisionRuntime", "Vision analysis failed", e)
+            VisionResult(
                 description = "",
                 labels = emptyList(),
                 confidence = 0f,
-                error = e.message
+                error = e.message ?: "Vision analysis failed"
             )
         }
     }
-    
-    override fun isAvailable(): Boolean = isLoaded
-    
+
+    override fun isAvailable(): Boolean = isLoaded && getStatus() == VisionRuntimeStatus.READY
+
     override fun load(modelPath: String): Boolean {
         status = VisionRuntimeStatus.LOADING
-        try {
+        return try {
             isLoaded = nativeLoad(modelPath)
             status = if (isLoaded) VisionRuntimeStatus.READY else VisionRuntimeStatus.ERROR
-        } catch (e: Exception) {
-            Log.e("LlavaVisionRuntime", "Error loading model: ${e.message}")
-            status = VisionRuntimeStatus.ERROR
+            isLoaded
+        } catch (e: UnsatisfiedLinkError) {
+            Log.e("LlavaVisionRuntime", "Vision native runtime is unavailable", e)
             isLoaded = false
-        }
-        return isLoaded
-    }
-    
-    override fun unload() {
-        try {
-            nativeUnload()
+            status = VisionRuntimeStatus.ERROR
+            false
         } catch (e: Exception) {
-            Log.e("LlavaVisionRuntime", "Error unloading model: ${e.message}")
+            Log.e("LlavaVisionRuntime", "Error loading vision model", e)
+            isLoaded = false
+            status = VisionRuntimeStatus.ERROR
+            false
         }
+    }
+
+    override fun unload() {
+        runCatching { nativeUnload() }
+            .onFailure { Log.e("LlavaVisionRuntime", "Error unloading vision runtime", it) }
         isLoaded = false
         status = VisionRuntimeStatus.NOT_LOADED
     }
-    
+
     override fun getStatus(): VisionRuntimeStatus {
-        return try {
+        status = runCatching {
             when (nativeGetStatus()) {
                 0 -> VisionRuntimeStatus.NOT_LOADED
                 1 -> VisionRuntimeStatus.LOADING
                 2 -> VisionRuntimeStatus.READY
                 else -> VisionRuntimeStatus.ERROR
             }
-        } catch (e: Exception) {
-            Log.e("LlavaVisionRuntime", "Error getting status: ${e.message}")
+        }.getOrElse {
             VisionRuntimeStatus.ERROR
         }
+        if (status != VisionRuntimeStatus.READY) isLoaded = false
+        return status
     }
-    
-    // Native JNI methods (implemented in llava-native.cpp)
+
     private external fun nativeLoad(modelPath: String): Boolean
-    private external fun nativeAnalyze(bitmap: Bitmap, prompt: String?): VisionResult
+    private external fun nativeAnalyze(bitmap: Bitmap, prompt: String?): VisionResult?
     private external fun nativeUnload()
     private external fun nativeGetStatus(): Int
-    
+
     companion object {
         init {
-            try {
-                System.loadLibrary("aurax_llava")
-            } catch (e: UnsatisfiedLinkError) {
-                Log.e("LlavaVisionRuntime", "Failed to load llava-native library: ${e.message}")
-            }
+            runCatching { System.loadLibrary("aurax_llava") }
+                .onFailure { Log.w("LlavaVisionRuntime", "Vision native library not available") }
         }
     }
 }
