@@ -48,73 +48,26 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(whisper_cpp)
 
-# Fetch llava.cpp for vision-language models
-# Note: llava.cpp is still evolving, so this is commented out for now.
-# Uncomment once llava.cpp stabilizes and is ready for Android.
-# FetchContent_Declare(
-#     llava_cpp
-#     GIT_REPOSITORY https://github.com/ggml-org/llava.cpp.git
-#     GIT_TAG main
-#     GIT_SHALLOW TRUE
-# )
-# FetchContent_MakeAvailable(llava_cpp)
+# LLaVA remains intentionally gated until a compatible Android native runtime
+# and model-loading path are validated. The Kotlin capability layer must not
+# report Vision READY merely because this JNI library exists.
 
-# Build llama.cpp as a static library
-add_library(
-    llama-lib
-    STATIC
-    native-lib.cpp
-)
+# Native LLM bridge. Link the FetchContent target instead of assuming a
+# generated libllama.a location; this is portable across llama.cpp layouts.
+add_library(llama-lib STATIC native-lib.cpp)
+target_link_libraries(llama-lib PRIVATE llama log android)
 
-target_link_libraries(
-    llama-lib
-    ${llama_cpp_SOURCE_DIR}/libllama.a
-    log
-    android
-)
+# Native Whisper bridge.
+add_library(whisper-lib STATIC whisper-native.cpp)
+target_link_libraries(whisper-lib PRIVATE whisper log android)
 
-# Build whisper-native as a static library
-add_library(
-    whisper-lib
-    STATIC
-    whisper-native.cpp
-)
+# Vision JNI boundary. This library intentionally reports unavailable until
+# a real multimodal runtime is linked and successfully loads a model.
+add_library(aurax_llava SHARED llava-native.cpp)
+target_link_libraries(aurax_llava PRIVATE log android)
 
-target_link_libraries(
-    whisper-lib
-    ${whisper_cpp_SOURCE_DIR}/libwhisper.a
-    log
-    android
-)
-
-# Build llava-native as a shared library
-# Note: This is a placeholder for now. Once llava.cpp is integrated,
-# we will link against the actual llava library.
-add_library(
-    aurax_llava
-    SHARED
-    llava-native.cpp
-)
-
-target_link_libraries(
-    aurax_llava
-    log
-    android
-    # Uncomment once llava.cpp is integrated:
-    # ${llava_cpp_SOURCE_DIR}/libllava.a
-)
-
-# Build the main native library
-add_library(
-    aurax_native
-    SHARED
-    # No source files here; we link the static libraries
-)
-
-target_link_libraries(
-    aurax_native
-    llama-lib
-    whisper-lib
-    log
-    android
-)
+# Main JNI/shared library. The anchor source gives CMake a concrete source
+# file; linking static bridges through this target keeps the Android packaging
+# contract explicit instead of relying on a source-less shared target.
+add_library(aurax_native SHARED aurax-native-anchor.cpp)
+target_link_libraries(aurax_native PRIVATE llama-lib whisper-lib log android)
