@@ -15,16 +15,41 @@ class LocalModelPlanner @Inject constructor(
 ) {
     suspend fun plan(input: String, memoryContext: String = ""): List<PlanStep>? {
         if (input.isBlank()) return null
+        if (runtime.loadedModelId() == null) {
+            runtime.loadBestAvailable().getOrNull() ?: return null
+        }
+        val raw = runtime.generate(
+            GenerationRequest(
+                prompt = buildPrompt(input, memoryContext),
+                maxTokens = prefs.modelMaxTokens.coerceAtMost(1024),
+                temperature = prefs.modelTemperature.coerceAtMost(0.4f),
+                contextTokens = prefs.modelContextTokens
+            )
+        ).getOrNull() ?: return null
+        return parse(raw)
+    }
 
+    /**
+     * Re-plan from the observed post-action state. The model receives only bounded,
+     * non-sensitive screen text and the failed step/evidence. A replacement plan is
+     * still parsed through the exact same allow-list and sensitive-data guards.
+     */
+    suspend fun replan(
+        originalInput: String,
+        failedStep: PlanStep,
+        failureEvidence: String,
+        screenSummary: String
+    ): List<PlanStep>? {
+        if (originalInput.isBlank() || failureEvidence.isBlank()) return null
         if (runtime.loadedModelId() == null) {
             runtime.loadBestAvailable().getOrNull() ?: return null
         }
 
         val raw = runtime.generate(
             GenerationRequest(
-                prompt = buildPrompt(input, memoryContext),
+                prompt = buildRecoveryPrompt(originalInput, failedStep, failureEvidence, screenSummary),
                 maxTokens = prefs.modelMaxTokens.coerceAtMost(1024),
-                temperature = prefs.modelTemperature.coerceAtMost(0.4f),
+                temperature = prefs.modelTemperature.coerceAtMost(0.2f),
                 contextTokens = prefs.modelContextTokens
             )
         ).getOrNull() ?: return null
@@ -46,6 +71,38 @@ class LocalModelPlanner @Inject constructor(
         ${memoryContext.take(1500)}
         Example: [{"tool":"chrome_automation","description":"Search Chrome for weather","args":{"query":"weather"}}]
         User request: ${input.trim()}
+    """.trimIndent()
+
+    private fun buildRecoveryPrompt(
+        originalInput: String,
+        failedStep: PlanStep,
+        failureEvidence: String,
+        screenSummary: String
+    ): String = """
+        You are AURA-X Operator's recovery planner.
+        A previous safe action did not verify. Re-plan only the remaining safe work.
+        Return ONLY a JSON array. No markdown and no prose.
+        Allowed tools: chrome_automation, youtube_automation, android_open.
+        Allowed arguments:
+        chrome_automation: query, url, action
+        youtube_automation: query, action
+        android_open: package
+        Never plan passwords, OTP, payment, banking, authentication, private/incognito,
+        like/subscribe/comment/ad actions, or destructive/high-risk actions.
+        Do not repeat the failed action unchanged unless the observed state clearly requires it.
+        Prefer a short recovery sequence. Never invent success.
+
+        Original user request:
+        ${originalInput.take(1200)}
+
+        Failed step:
+        ${failedStep.description.take(500)}
+
+        Failure evidence:
+        ${failureEvidence.take(600)}
+
+        Observed screen text:
+        ${screenSummary.take(3000)}
     """.trimIndent()
 
     private fun parse(raw: String): List<PlanStep>? {
