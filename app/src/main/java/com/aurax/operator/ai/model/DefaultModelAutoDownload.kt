@@ -15,41 +15,47 @@ import javax.inject.Singleton
 
 /**
  * Schedules the built-in primary LLM download without blocking app startup.
- * Downloads are unique/idempotent and default to unmetered networks so a
- * first-run model download cannot silently consume a user's mobile data.
+ *
+ * Policy is explicit and local: by default downloads require an unmetered
+ * network. Charging, battery, retry and automatic-download controls are user
+ * configurable through [ModelDownloadSettings].
  */
 @Singleton
 class DefaultModelAutoDownload @Inject constructor(
     @ApplicationContext private val context: Context,
     private val modelHub: ModelHub
 ) {
-    fun isEnabled(): Boolean = prefs().getBoolean(KEY_ENABLED, true)
+    private val settings = ModelDownloadSettings(context)
+
+    fun isEnabled(): Boolean = settings.automaticDownload
 
     fun setEnabled(enabled: Boolean) {
-        prefs().edit().putBoolean(KEY_ENABLED, enabled).apply()
+        settings.automaticDownload = enabled
         if (enabled) schedule() else cancel()
     }
 
     fun schedule() {
-        if (!isEnabled()) return
+        if (!settings.automaticDownload) return
+
+        val networkType = if (settings.unmeteredOnly) NetworkType.UNMETERED else NetworkType.CONNECTED
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(networkType)
+            .setRequiresCharging(settings.chargingOnly)
+            .setRequiresBatteryNotLow(settings.pauseBelowBatteryPercent >= 15)
+            .build()
+
+        val input = Data.Builder()
+            .putString(ModelDownloadWorker.KEY_MODEL_ID, ModelHub.DEFAULT_MODEL_ID)
+            .putBoolean(ModelDownloadWorker.KEY_WIFI_ONLY, settings.unmeteredOnly)
+            .putBoolean(ModelDownloadWorker.KEY_AUTO_RETRY, settings.automaticRetry)
+            .putInt(ModelDownloadWorker.KEY_MAX_RETRIES, settings.retryCount)
+            .putInt(ModelDownloadWorker.KEY_SPEED_LIMIT_KBPS, settings.speedLimitKbps)
+            .build()
 
         val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
-            .setInputData(
-                Data.Builder()
-                    .putString(ModelDownloadWorker.KEY_MODEL_ID, ModelHub.DEFAULT_MODEL_ID)
-                    .putBoolean(ModelDownloadWorker.KEY_WIFI_ONLY, true)
-                    .build()
-            )
-            .setConstraints(
-                Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.UNMETERED)
-                    .build()
-            )
-            .setBackoffCriteria(
-                BackoffPolicy.EXPONENTIAL,
-                30,
-                TimeUnit.SECONDS
-            )
+            .setInputData(input)
+            .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
 
         WorkManager.getInstance(context).enqueueUniqueWork(
@@ -64,18 +70,14 @@ class DefaultModelAutoDownload @Inject constructor(
     }
 
     suspend fun scheduleIfMissingOrInvalid() {
-        if (!isEnabled()) return
+        if (!settings.automaticDownload) return
         modelHub.seedBuiltIns()
         val model = modelHub.get(ModelHub.DEFAULT_MODEL_ID) ?: return
         val installed = model.localPath?.let { java.io.File(it).isFile } == true && model.status == "READY"
         if (!installed) schedule()
     }
 
-    private fun prefs() = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-
     companion object {
         const val UNIQUE_WORK_NAME = "aurax-default-model-download"
-        const val PREFS_NAME = "aurax_model_download_settings"
-        const val KEY_ENABLED = "auto_download_default_model"
     }
 }
