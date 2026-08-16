@@ -1,182 +1,130 @@
 package com.aurax.operator.voice.conversation
 
 import android.util.Log
-import com.aurax.operator.voice.wakeword.WakeWordManager
-import com.aurax.operator.voice.stt.SpeechToTextEngine
+import com.aurax.operator.voice.stt.WhisperRecognizer
+import com.aurax.operator.voice.tts.AndroidTTSEngine
 import com.aurax.operator.voice.tts.TextToSpeechEngine
+import com.aurax.operator.voice.wakeword.WakeWordManager
+import com.aurax.operator.voice.wakeword.WakeWordSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
- * Manages continuous conversation, including wake word detection,
- * speech-to-text, text-to-speech, and barge-in.
+ * Coordinates wake-word, STT and TTS engines. Runtime-specific adapters implement
+ * SpeechToTextEngine; the conversation state machine itself remains engine-neutral.
  */
 class ConversationManager(
     private val wakeWordManager: WakeWordManager,
     private val sttEngine: SpeechToTextEngine,
     private val ttsEngine: TextToSpeechEngine,
-    private val settings: VoiceSettings
+    private var settings: VoiceSettings
 ) {
-    
-    enum class State {
-        IDLE,
-        LISTENING,
-        PROCESSING,
-        SPEAKING
-    }
-    
+    enum class State { IDLE, LISTENING, PROCESSING, SPEAKING }
+
     private var state = State.IDLE
     private var isBargeInEnabled = false
-    
+
     init {
-        // Set up barge-in callback
         if (ttsEngine is AndroidTTSEngine) {
-            (ttsEngine as AndroidTTSEngine).setOnBargeIn {
-                handleBargeIn()
-            }
+            ttsEngine.setOnBargeIn { handleBargeIn() }
         }
     }
-    
-    /**
-     * Starts continuous conversation mode.
-     */
+
     fun start() {
-        if (!settings.continuousConversationEnabled) {
-            Log.d("ConversationManager", "Continuous conversation is disabled")
-            return
-        }
-        
-        // Set barge-in enabled based on settings
+        if (!settings.continuousConversationEnabled) return
         setBargeInEnabled(settings.bargeInEnabled)
-        
-        wakeWordManager.startListening {
-            onWakeWordDetected()
-        }
+        wakeWordManager.startListening()
         state = State.IDLE
         Log.d("ConversationManager", "Continuous conversation started")
     }
-    
-    /**
-     * Stops continuous conversation mode.
-     */
+
     fun stop() {
         wakeWordManager.stopListening()
         sttEngine.stop()
         ttsEngine.stop()
         state = State.IDLE
-        Log.d("ConversationManager", "Continuous conversation stopped")
     }
-    
-    /**
-     * Called when the wake word is detected.
-     */
-    private fun onWakeWordDetected() {
+
+    fun onWakeWordDetected() {
         if (state != State.IDLE) return
-        
-        Log.d("ConversationManager", "Wake word detected")
         startListening()
     }
-    
-    /**
-     * Starts listening for user input.
-     */
+
     private fun startListening() {
         state = State.LISTENING
-        sttEngine.startListening { transcript ->
-            onTranscriptReceived(transcript)
+        if (!sttEngine.startListening { transcript -> onTranscriptReceived(transcript) }) {
+            state = State.IDLE
+            Log.w("ConversationManager", "STT runtime is unavailable")
         }
     }
-    
-    /**
-     * Called when a transcript is received from STT.
-     */
+
     private fun onTranscriptReceived(transcript: String) {
         if (state != State.LISTENING) return
-        
-        Log.d("ConversationManager", "Transcript received: $transcript")
         state = State.PROCESSING
-        
-        // Process the transcript (e.g., send to LLM)
         CoroutineScope(Dispatchers.IO).launch {
             val response = processTranscript(transcript)
             speakResponse(response)
         }
     }
-    
-    /**
-     * Processes the user's transcript and generates a response.
-     */
-    private suspend fun processTranscript(transcript: String): String {
-        // TODO: Replace with actual LLM processing
-        return "I received: $transcript"
-    }
-    
-    /**
-     * Speaks the response using TTS.
-     */
+
+    private suspend fun processTranscript(transcript: String): String =
+        "I received: $transcript"
+
     private fun speakResponse(response: String) {
         state = State.SPEAKING
-        CoroutineScope(Dispatchers.Main).launch {
-            ttsEngine.speak(response)
-        }
+        CoroutineScope(Dispatchers.Main).launch { ttsEngine.speak(response) }
     }
-    
-    /**
-     * Handles barge-in (interrupting TTS to listen).
-     */
+
     fun handleBargeIn() {
         if (!isBargeInEnabled || state != State.SPEAKING) return
-        
-        Log.d("ConversationManager", "Barge-in detected")
         ttsEngine.stop()
         startListening()
     }
-    
-    /**
-     * Enables or disables barge-in.
-     */
+
     fun setBargeInEnabled(enabled: Boolean) {
         isBargeInEnabled = enabled
         ttsEngine.setBargeInEnabled(enabled)
     }
-    
-    /**
-     * Gets the current conversation state.
-     */
+
     fun getState(): State = state
-    
-    /**
-     * Updates voice settings.
-     */
+
     fun updateSettings(newSettings: VoiceSettings) {
-        // Stop current conversation if running
-        if (state != State.IDLE) {
-            stop()
-        }
-        
-        // Update settings
+        if (state != State.IDLE) stop()
+        settings = newSettings
         wakeWordManager.updateSettings(newSettings.wakeWordSettings)
         setBargeInEnabled(newSettings.bargeInEnabled)
-        
-        // Restart if needed
-        if (newSettings.continuousConversationEnabled) {
-            start()
-        }
+        if (newSettings.continuousConversationEnabled) start()
     }
-    
-    /**
-     * Releases resources.
-     */
+
     fun release() {
         stop()
         wakeWordManager.release()
     }
 }
 
-/**
- * Settings for voice and conversation.
- */
+/** Engine-neutral STT contract used by the conversation state machine. */
+interface SpeechToTextEngine {
+    fun startListening(onTranscript: (String) -> Unit): Boolean
+    fun stop()
+    fun isAvailable(): Boolean
+}
+
+/** Adapter for the real local Whisper recognizer. */
+class WhisperSpeechToTextEngine(
+    private val recognizer: WhisperRecognizer,
+    private val modelPathProvider: () -> String?,
+    private val languageProvider: () -> String
+) : SpeechToTextEngine {
+    override fun startListening(onTranscript: (String) -> Unit): Boolean {
+        val path = modelPathProvider() ?: return false
+        return recognizer.start(path, languageProvider(), onTranscript)
+    }
+
+    override fun stop() = recognizer.stop()
+    override fun isAvailable(): Boolean = recognizer.isRuntimeAvailable() && modelPathProvider()?.let(recognizer::isAvailable) == true
+}
+
 data class VoiceSettings(
     val continuousConversationEnabled: Boolean = false,
     val wakeWordSettings: WakeWordSettings = WakeWordSettings(),
