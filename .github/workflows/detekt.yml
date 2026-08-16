@@ -19,7 +19,34 @@ jobs:
         with:
           gradle-version: "8.2"
       - name: Run app Detekt
+        id: detekt
+        continue-on-error: true
         run: gradle --no-daemon --stacktrace :app:detekt
+      - name: Print Detekt findings
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          echo "===== AURA-X Detekt diagnostics ====="
+          if [ -f app/build/reports/detekt/detekt.xml ]; then
+            python3 - <<'PY'
+            import xml.etree.ElementTree as ET
+            from pathlib import Path
+            path = Path("app/build/reports/detekt/detekt.xml")
+            root = ET.parse(path).getroot()
+            count = 0
+            for issue in root.iter("error"):
+                count += 1
+                print(issue.attrib)
+            print(f"Detekt XML findings: {count}")
+            PY
+          else
+            echo "Detekt XML report was not generated."
+          fi
+          if [ -f app/build/reports/detekt/detekt.html ]; then
+            echo "Detekt HTML report generated: app/build/reports/detekt/detekt.html"
+          fi
+          echo "===== End AURA-X Detekt diagnostics ====="
       - name: Upload detekt report
         if: always()
         uses: actions/upload-artifact@v5
@@ -30,3 +57,6 @@ jobs:
             app/build/reports/detekt/
           if-no-files-found: warn
           retention-days: 14
+      - name: Fail when Detekt reports violations
+        if: steps.detekt.outcome == 'failure'
+        run: exit 1
