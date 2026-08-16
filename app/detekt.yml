@@ -1,0 +1,14 @@
+# AURA-X Detekt configuration.
+# Default rules remain authoritative through buildUponDefaultConfig=true.
+# Keep this file intentionally small so upgrades do not silently fork the
+# complete Detekt default rule set.
+
+build:
+  maxIssues: 0
+
+config:
+  validation: true
+
+style:
+  MagicNumber:
+    active: false
