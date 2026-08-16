@@ -64,7 +64,7 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
     testImplementation("org.mockito:mockito-core:5.3.1")
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.1.0")
-    testImplementation("org.mockito:mockito-inline:5.1.1")
+    testImplementation("org.mockito:mockito-inline:5.3.1")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     testImplementation("junit:junit:4.13.2")
     detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.6")
