@@ -19,16 +19,30 @@ This document records the implementation-hardening pass against the AURA-X NEXUS
 - Low-battery protection is enforced by the download worker.
 - Automatic retry can be disabled.
 - Retry count is bounded from 0–10.
-- Maximum parallel-download policy is stored for future queue coordination.
-- Download speed-limit policy is stored for future transport throttling.
-- WorkManager download constraints now derive from the explicit download policy.
+- Maximum parallel-download policy is stored for queue coordination.
+- Download speed-limit policy is now enforced by the download transport.
+- WorkManager download constraints derive from the explicit download policy.
 
 ### Download worker safety
 
-- Retry behavior is now bounded by the configured retry count.
+- Retry behavior is bounded by the configured retry count.
 - Non-transient failures do not enter an endless retry loop.
 - User-disabled automatic retry fails the work item immediately with a diagnostic payload.
 - Low-battery work is deferred rather than consuming the final battery reserve.
+
+### Download transport hardening
+
+The model transport now:
+
+- reads the configured `speedLimitKbps` policy;
+- throttles the byte stream when a non-zero limit is configured;
+- keeps cancellation checks inside the transfer loop;
+- preserves resumable `Range` behavior;
+- validates response ranges and expected model size;
+- validates GGUF structure and SHA-256 before activation;
+- preserves an existing destination model while activating a new verified model;
+- uses an atomic filesystem move where the platform supports it, with a controlled fallback;
+- restores the previous model if activation fails after it has been preserved.
 
 ### Vision capability truthfulness
 
@@ -52,6 +66,8 @@ The CMake configuration still intentionally does not bundle llava.cpp. Therefore
 | Model integrity verification | READY | GGUF validation + SHA-256 when supplied |
 | Model cancellation | READY | WorkManager cancellation / coroutine cancellation |
 | Model retry | READY | bounded WorkManager retry policy |
+| Model speed limit | READY | transport-level throttling |
+| Model activation safety | READY | verified file + preserved previous model + atomic move/fallback |
 | Accessibility operator | PERMISSION_GATED | Android AccessibilityService must be enabled |
 | Operator abort | READY/PERMISSION_GATED by path | receiver + runtime safety controller |
 | Safety confirmation | READY | policy/confirmation layer |
@@ -74,12 +90,11 @@ These are engineering tasks, not UI placeholders to be marked complete without e
 4. Complete streaming token generation if the runtime abstraction requires true token-level streaming.
 5. Complete end-to-end Observe → Plan → Act → Verify → Recover → Replan tests on a physical Android device.
 6. Add explicit battery-percentage scheduling rather than relying only on WorkManager's coarse `BatteryNotLow` constraint for all queued work.
-7. Apply the stored download speed-limit policy to the HTTP transport.
-8. Enforce the stored maximum-parallel-download policy in the model queue coordinator.
-9. Migrate legacy settings from `SharedPreferences` to the final DataStore-backed settings architecture without breaking existing installations.
-10. Add release-build signing/configuration verification in CI.
-11. Run the final API 28–35 compatibility matrix on supported emulator/device images.
-12. Complete the final security review and physical-device automation test suite.
+7. Enforce the stored maximum-parallel-download policy in the model queue coordinator.
+8. Migrate legacy settings from `SharedPreferences` to the final DataStore-backed settings architecture without breaking existing installations.
+9. Add release-build signing/configuration verification in CI.
+10. Run the final API 28–35 compatibility matrix on supported emulator/device images.
+11. Complete the final security review and physical-device automation test suite.
 
 ## Release rule
 
