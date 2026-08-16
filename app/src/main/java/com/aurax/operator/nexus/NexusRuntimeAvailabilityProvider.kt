@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import com.aurax.operator.ai.model.ModelRepository
 import com.aurax.operator.ai.runtime.LlamaCppRuntime
+import com.aurax.operator.ai.vision.LlavaVisionRuntime
 import com.aurax.operator.voice.stt.WhisperRecognizer
 import java.io.File
 
@@ -14,6 +15,7 @@ class NexusRuntimeAvailabilityProvider(context: Context) {
     private val modelRepository = ModelRepository(appContext)
     private val llamaRuntime = LlamaCppRuntime(appContext)
     private val whisperRecognizer = WhisperRecognizer()
+    private val visionRuntime = LlavaVisionRuntime()
 
     fun snapshot(): NexusRuntimeAvailability {
         val permissions = buildSet {
@@ -36,7 +38,7 @@ class NexusRuntimeAvailabilityProvider(context: Context) {
         val runtimes = buildSet {
             if (llamaRuntime.isOperational()) add("llama.cpp")
             if (whisperRecognizer.isRuntimeAvailable() && whisperModel.isFile && whisperModel.length() > 0L) add("whisper-runtime")
-            if (File(appContext.filesDir, "runtimes/vision-runtime").isFile) add("vision-runtime")
+            if (visionRuntime.isNativeRuntimeAvailable() && visionModel.isFile && visionModel.length() > 0L) add("vision-runtime")
             if (File(appContext.filesDir, "runtimes/wake-word-engine").isFile) add("wake-word-engine")
             if (File(appContext.filesDir, "runtimes/memory-graph").isFile) add("memory-graph")
         }
