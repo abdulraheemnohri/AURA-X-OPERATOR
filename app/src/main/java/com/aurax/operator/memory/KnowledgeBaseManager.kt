@@ -95,7 +95,6 @@ class KnowledgeBaseManager(context: Context) {
         return ingestTextLegacy(name, text)
     }
 
-    /** Deterministic lexical retrieval used when semantic embeddings are unavailable. */
     fun search(query: String, topK: Int = 5): List<Match> {
         if (!indexFile.exists() || query.isBlank()) return emptyList()
         val queryTerms = tokenize(query).toSet()
@@ -127,11 +126,6 @@ class KnowledgeBaseManager(context: Context) {
             .take(topK.coerceIn(1, 20))
     }
 
-    /**
-     * Hybrid retrieval. Semantic search is activated only when the supplied
-     * runtime is operational and indexed chunks contain compatible vectors.
-     * Otherwise this safely falls back to lexical retrieval.
-     */
     suspend fun searchHybrid(
         query: String,
         embeddingRuntime: EmbeddingRuntime?,
@@ -144,12 +138,13 @@ class KnowledgeBaseManager(context: Context) {
 
         val lexical = search(query, 20).associateBy { it.chunk.id }
         val all = readChunks()
-        val semantic = all.mapNotNull { chunk ->
-            val vector = chunk.embedding ?: return@mapNotNull null
-            if (vector.size != queryVector.size) return@mapNotNull null
+        val semantic = mutableMapOf<String, Float>()
+        all.forEach { chunk ->
+            val vector = chunk.embedding ?: return@forEach
+            if (vector.size != queryVector.size) return@forEach
             val cosine = cosine(queryVector, vector)
-            if (cosine <= 0f) null else chunk to cosine
-        }.toMap()
+            if (cosine > 0f) semantic[chunk.id] = cosine
+        }
 
         if (semantic.isEmpty()) return@withContext lexical.values.take(topK)
 
