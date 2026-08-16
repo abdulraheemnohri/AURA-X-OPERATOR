@@ -92,7 +92,16 @@ fun NexusUpgradeCenterScreen(context: Context) {
                     Switch(checked = rag, onCheckedChange = { rag = it; prefs.edit().putBoolean("rag_enabled", it).apply() })
                 }
                 Text("Indexed chunks: ${kb.chunkCount()}")
-                Button(onClick = { kb.ingestText("nexus_note", "AURA-X NEXUS local knowledge index is enabled. Preferences remain on-device.") }) { Text("Seed local knowledge") }
+                Button(onClick = {
+                    scope.launch {
+                        status = withContext(Dispatchers.IO) {
+                            runCatching {
+                                kb.ingestText("nexus_note", "AURA-X NEXUS local knowledge index is enabled. Preferences remain on-device.")
+                                "Local knowledge seeded."
+                            }.getOrElse { "Knowledge seed failed: ${it.message}" }
+                        }
+                    }
+                }) { Text("Seed local knowledge") }
             }
         }
 
