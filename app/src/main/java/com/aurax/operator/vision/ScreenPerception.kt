@@ -7,8 +7,8 @@ import javax.inject.Inject
 
 /**
  * Unified screen perception contract.
- * Accessibility is always available when the service is enabled; OCR is an
- * evidence source when a real runtime and screenshot are supplied.
+ * Accessibility is authoritative for actionable targets; OCR contributes
+ * independent visual text evidence when a real runtime and screenshot exist.
  */
 interface ScreenPerception {
     suspend fun perceive(accessibility: ScreenContext?, screenshot: Bitmap? = null): PerceivedScreen
@@ -24,13 +24,16 @@ data class PerceivedScreen(
     val visualSummary: String? = null,
     val confidence: Float = 0f,
     val sources: Set<PerceptionSource> = emptySet(),
-    val ocrError: String? = null
+    val ocrError: String? = null,
+    val evidenceAgreement: Float = 0f
 ) {
     val hasSensitiveContent: Boolean
         get() = (text + ocrText).any(::looksSensitive)
 
     companion object {
-        private val sensitivePattern = Regex("(?i)\\b(password|passwd|otp|one[- ]?time|cvv|pin|verification code|secret|api key|token)\\b")
+        private val sensitivePattern = Regex(
+            "(?i)\\b(password|passwd|otp|one[- ]?time|cvv|pin|verification code|secret|api key|token)\\b"
+        )
         private fun looksSensitive(value: String): Boolean = sensitivePattern.containsMatchIn(value)
     }
 }
@@ -42,43 +45,33 @@ enum class PerceptionSource {
 }
 
 class AccessibilityFirstScreenPerception @Inject constructor(
-    private val ocrRuntime: OcrRuntime
+    private val ocrRuntime: OcrRuntime,
+    private val evidenceFusion: EvidenceFusionEngine
 ) : ScreenPerception {
+
     override suspend fun perceive(
         accessibility: ScreenContext?,
         screenshot: Bitmap?
     ): PerceivedScreen {
-        val accessibilityText = accessibility?.allText.orEmpty()
-        val actionableTargets = accessibility?.clickableNodes.orEmpty().mapNotNull { node ->
-            node.text?.takeIf { it.isNotBlank() } ?: node.contentDescription?.takeIf { it.isNotBlank() }
-        }
-
         val ocr = if (screenshot != null && ocrRuntime.isAvailable()) {
             ocrRuntime.recognize(screenshot)
         } else {
             null
         }
 
-        val ocrText = ocr?.blocks?.map { it.text }.orEmpty()
-        val sources = buildSet {
-            if (accessibility != null) add(PerceptionSource.ACCESSIBILITY)
-            if (ocrText.isNotEmpty()) add(PerceptionSource.OCR)
-        }
-        val textEvidenceCount = accessibilityText.size + ocrText.size
-        val confidence = when {
-            textEvidenceCount == 0 -> 0.5f
-            accessibilityText.isNotEmpty() && ocrText.isNotEmpty() -> 1f
-            else -> 0.9f
-        }
+        val ocrBlocks = ocr?.blocks.orEmpty()
+        val fused = evidenceFusion.fuse(accessibility, ocrBlocks)
+        val ocrText = ocrBlocks.map { it.text }.filter { it.isNotBlank() }
 
         return PerceivedScreen(
             packageName = accessibility?.packageName,
-            text = accessibilityText,
-            actionableTargets = actionableTargets,
+            text = fused.text,
+            actionableTargets = fused.actionableTargets,
             ocrText = ocrText,
-            confidence = confidence,
-            sources = sources,
-            ocrError = ocr?.error
+            confidence = fused.confidence,
+            sources = fused.sources,
+            ocrError = ocr?.error,
+            evidenceAgreement = fused.agreement
         )
     }
 
