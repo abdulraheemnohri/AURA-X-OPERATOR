@@ -1,12 +1,9 @@
 package com.aurax.operator.vision
 
-import android.graphics.Rect
 import com.aurax.operator.operator.ScreenContext
 import com.aurax.operator.operator.UiElement
 import com.aurax.operator.vision.ocr.OcrBlock
 import javax.inject.Inject
-import kotlin.math.max
-import kotlin.math.min
 
 /**
  * Combines accessibility evidence with OCR evidence without granting OCR
@@ -38,7 +35,7 @@ class EvidenceFusionEngine @Inject constructor() {
 
         val confidence = when {
             accessibility != null && ocrBlocks.isNotEmpty() ->
-                ((0.65f + agreement * 0.35f).coerceIn(0f, 1f))
+                (0.65f + agreement * 0.35f).coerceIn(0f, 1f)
             accessibility != null -> 0.65f
             ocrBlocks.isNotEmpty() -> 0.35f
             else -> 0f
