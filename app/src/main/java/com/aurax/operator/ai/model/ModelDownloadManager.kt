@@ -10,6 +10,8 @@ import java.io.File
 import java.io.RandomAccessFile
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -41,6 +43,9 @@ class ModelDownloadManager @Inject constructor(
     private suspend fun performDownload(model: ModelEntity, wifiOnly: Boolean): ModelEntity {
         require(model.sourceUrl.isNotBlank()) { "Model has no download URL" }
         if (wifiOnly) require(isWifiConnected()) { "Wi-Fi-only download is enabled" }
+
+        val settings = ModelDownloadSettings(context)
+        val speedLimitKbps = settings.speedLimitKbps
 
         val dir = File(context.filesDir, "models").apply { mkdirs() }
         val safeName = model.name.substringAfterLast('/')
@@ -115,15 +120,32 @@ class ModelDownloadManager @Inject constructor(
             connection.inputStream.use { input ->
                 RandomAccessFile(partial, "rw").use { output ->
                     output.seek(if (append) start else 0L)
-                    val buffer = ByteArray(1024 * 1024)
+                    val buffer = ByteArray(256 * 1024)
                     var downloaded = if (append) start else 0L
+                    var windowBytes = 0L
+                    var windowStartedAt = System.nanoTime()
                     while (true) {
                         coroutineContext.ensureActive()
                         val count = input.read(buffer)
                         if (count < 0) break
                         if (count == 0) continue
+
                         output.write(buffer, 0, count)
                         downloaded += count
+                        if (speedLimitKbps > 0) {
+                            val limitBytesPerSecond = speedLimitKbps.toLong() * 1024L
+                            windowBytes += count
+                            val elapsedNanos = System.nanoTime() - windowStartedAt
+                            val expectedNanos = (windowBytes * 1_000_000_000L) / limitBytesPerSecond
+                            if (expectedNanos > elapsedNanos) {
+                                val sleepMillis = (expectedNanos - elapsedNanos) / 1_000_000L
+                                if (sleepMillis > 0L) kotlinx.coroutines.delay(sleepMillis)
+                            }
+                            if (elapsedNanos >= 1_000_000_000L) {
+                                windowBytes = 0L
+                                windowStartedAt = System.nanoTime()
+                            }
+                        }
                         update(model.copy(status = "DOWNLOADING", downloadedBytes = downloaded))
                     }
                 }
@@ -159,8 +181,24 @@ class ModelDownloadManager @Inject constructor(
             val actual = sha256(partial)
             require(actual.equals(model.sha256, ignoreCase = true)) { "SHA-256 verification failed" }
         }
-        if (destination.exists()) destination.delete()
-        require(partial.renameTo(destination)) { "Unable to finalize downloaded model" }
+
+        destination.parentFile?.mkdirs()
+        if (destination.exists()) {
+            val backup = File(destination.parentFile, "${destination.name}.previous")
+            if (backup.exists()) backup.delete()
+            require(destination.renameTo(backup)) { "Unable to preserve previous model" }
+            try {
+                atomicMove(partial, destination)
+                backup.delete()
+            } catch (error: Throwable) {
+                if (destination.exists()) destination.delete()
+                require(backup.renameTo(destination)) { "Unable to restore previous model" }
+                throw error
+            }
+        } else {
+            atomicMove(partial, destination)
+        }
+
         update(model.copy(
             name = destination.name,
             localPath = destination.absolutePath,
@@ -170,6 +208,23 @@ class ModelDownloadManager @Inject constructor(
         ))
     }
 
+    private fun atomicMove(source: File, destination: File) {
+        try {
+            Files.move(
+                source.toPath(),
+                destination.toPath(),
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING
+            )
+        } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+            Files.move(
+                source.toPath(),
+                destination.toPath(),
+                StandardCopyOption.REPLACE_EXISTING
+            )
+        }
+    }
+
     private fun openConnection(url: String, start: Long): HttpURLConnection =
         (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 20_000
@@ -177,7 +232,7 @@ class ModelDownloadManager @Inject constructor(
             instanceFollowRedirects = true
             if (start > 0L) setRequestProperty("Range", "bytes=$start-")
             setRequestProperty("Accept", "application/octet-stream")
-            setRequestProperty("User-Agent", "AURA-X-Operator/3.4")
+            setRequestProperty("User-Agent", "AURA-X-Operator/5.0")
         }
 
     private data class ContentRange(val start: Long, val end: Long, val total: Long?)
