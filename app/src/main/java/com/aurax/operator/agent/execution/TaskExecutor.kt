@@ -3,6 +3,8 @@ package com.aurax.operator.agent.execution
 import android.content.Context
 import com.aurax.operator.agent.planner.LocalModelPlanner
 import com.aurax.operator.agent.planner.OperatorPlanner
+import com.aurax.operator.agent.planner.PlanStep
+import com.aurax.operator.agent.verification.ActionVerifier
 import com.aurax.operator.core.app.AppState
 import com.aurax.operator.core.app.OperatorPhase
 import com.aurax.operator.core.common.ToolResult
@@ -20,6 +22,7 @@ import com.aurax.operator.operator.AccessibilityGuardrails
 import com.aurax.operator.operator.AutomationPolicy
 import com.aurax.operator.operator.AutomationPolicyEngine
 import com.aurax.operator.operator.AuraAccessibilityService
+import com.aurax.operator.operator.AccessibilityOperator
 import com.aurax.operator.operator.OperatorRuntime
 import com.aurax.operator.tools.android.AndroidTool
 import com.aurax.operator.tools.chrome.ChromeTool
@@ -40,6 +43,7 @@ class TaskExecutor @Inject constructor(
     private val policyRuntime = PolicyRuntime(context)
     private val pendingActions = PendingActionStore()
     private val confirmation = ConfirmationCoordinator(pendingActions)
+    private val verifier = ActionVerifier()
 
     suspend fun confirmPending(): Boolean = confirmation.confirm() != null
     suspend fun abortPending(): Boolean = confirmation.abort() != null
@@ -132,9 +136,10 @@ class TaskExecutor @Inject constructor(
                         is ToolResult.Failure -> throw IllegalStateException(result.message)
                         is ToolResult.Blocked -> throw SecurityException(result.reason)
                     }
+                    verifyOrRecover(step, operator)
                     actionCount++
                     db.dao().addAction(OperatorActionEntity(taskId = taskId, packageName = packageName ?: "android", action = step.description, target = step.args.toString(), allowed = true))
-                    audit("ACTION_ALLOWED", risk.name, step.description)
+                    audit("ACTION_VERIFIED", risk.name, step.description)
                     delay(50)
                     continue
                 }
@@ -146,14 +151,15 @@ class TaskExecutor @Inject constructor(
                     is ToolResult.Failure -> throw IllegalStateException(toolResult.message)
                     is ToolResult.Blocked -> throw SecurityException(toolResult.reason)
                 }
+                verifyOrRecover(step, operator)
                 actionCount++
                 db.dao().addAction(OperatorActionEntity(taskId = taskId, packageName = packageName ?: step.tool, action = step.description, target = step.args.toString(), allowed = true))
-                audit("ACTION_ALLOWED", risk.name, step.description)
+                audit("ACTION_VERIFIED", risk.name, step.description)
                 delay(50)
             }
 
-            AppState.setPhase(OperatorPhase.COMPLETED, "Task completed")
-            val output = logs.joinToString(" ").ifBlank { "Task completed." }
+            AppState.setPhase(OperatorPhase.COMPLETED, "Task completed and verified")
+            val output = logs.joinToString(" ").ifBlank { "Task completed and verified." }
             db.dao().setTaskStatus(taskId, "COMPLETED", output)
             extractKeyMemory(input)?.let { (key, value) -> db.dao().addMemory(MemoryEntity(key = key, value = value)) }
             output
@@ -166,6 +172,29 @@ class TaskExecutor @Inject constructor(
             db.dao().addSafety(SafetyEventEntity(type = if (aborted) "TASK_ABORTED" else "TASK_FAILED", reason = reason, packageName = null, action = input))
             "Task stopped safely: $reason"
         }
+    }
+
+    private suspend fun verifyOrRecover(step: PlanStep, operator: AccessibilityOperator) {
+        AppState.setPhase(OperatorPhase.VERIFYING, "Verifying: ${step.description}")
+        var last = verifier.verify(step, operator)
+        if (last.verified) {
+            audit("VERIFICATION_PASSED", "${last.evidence} (confidence=${last.confidence})", step.description)
+            return
+        }
+
+        audit("VERIFICATION_RETRY", last.evidence, step.description)
+        AppState.setPhase(OperatorPhase.RECOVERING, "Re-observing: ${step.description}")
+        repeat(2) {
+            OperatorRuntime.ensureNotAborted()
+            delay(250)
+            last = verifier.verify(step, operator)
+            if (last.verified) return@repeat
+        }
+        if (!last.verified) {
+            audit("VERIFICATION_FAILED", last.evidence, step.description)
+            throw IllegalStateException("Action was not verified: ${last.evidence}")
+        }
+        audit("VERIFICATION_RECOVERED", "${last.evidence} (confidence=${last.confidence})", step.description)
     }
 
     private fun extractKeyMemory(input: String): Pair<String, String>? {
