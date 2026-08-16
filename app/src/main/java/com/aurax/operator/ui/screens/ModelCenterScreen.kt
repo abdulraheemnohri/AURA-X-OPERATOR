@@ -1,5 +1,6 @@
 package com.aurax.operator.ui.screens
 
+import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,10 +14,12 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aurax.operator.ai.model.HuggingFaceFile
 import com.aurax.operator.ai.model.HuggingFaceModel
+import com.aurax.operator.ai.model.ModelDownloadSettings
 import com.aurax.operator.data.entities.ModelEntity
 import com.aurax.operator.ui.viewmodel.HuggingFaceHubViewModel
 import java.util.Locale
@@ -25,6 +28,7 @@ import kotlin.math.max
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ModelCenterScreen(viewModel: HuggingFaceHubViewModel = hiltViewModel()) {
+    val context = LocalContext.current
     val query by viewModel.query.collectAsState()
     val models by viewModel.models.collectAsState()
     val files by viewModel.files.collectAsState()
@@ -40,6 +44,7 @@ fun ModelCenterScreen(viewModel: HuggingFaceHubViewModel = hiltViewModel()) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(bottom = 28.dp)
     ) {
+        item { ModelDownloadPolicyCard(context) }
         item {
             Text("Model Hub", style = MaterialTheme.typography.headlineSmall)
             Text("Browse public Hugging Face repositories, inspect files, queue resumable downloads and manage local models.", style = MaterialTheme.typography.bodyMedium)
@@ -113,6 +118,39 @@ fun ModelCenterScreen(viewModel: HuggingFaceHubViewModel = hiltViewModel()) {
 }
 
 @Composable
+private fun ModelDownloadPolicyCard(context: Context) {
+    val settings = remember { ModelDownloadSettings(context) }
+    var auto by remember { mutableStateOf(settings.automaticDownload) }
+    var unmetered by remember { mutableStateOf(settings.unmeteredOnly) }
+    var charging by remember { mutableStateOf(settings.chargingOnly) }
+    var battery by remember { mutableIntStateOf(settings.pauseBelowBatteryPercent) }
+    var retries by remember { mutableIntStateOf(settings.retryCount) }
+
+    ElevatedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Automatic model download", style = MaterialTheme.typography.titleLarge)
+            Text("These controls govern background model fetching. The default policy is local-first and unmetered-only.", style = MaterialTheme.typography.bodySmall)
+            PolicySwitch("Automatic default-model download", auto) { auto = it; settings.automaticDownload = it }
+            PolicySwitch("Unmetered / Wi-Fi only", unmetered) { unmetered = it; settings.unmeteredOnly = it }
+            PolicySwitch("Charging only", charging) { charging = it; settings.chargingOnly = it }
+            Text("Pause below ${battery}% battery", style = MaterialTheme.typography.titleSmall)
+            Slider(value = battery.toFloat(), onValueChange = { battery = it.toInt().coerceIn(5, 80); settings.pauseBelowBatteryPercent = battery }, valueRange = 5f..80f, steps = 14)
+            Text("Maximum automatic retries: $retries", style = MaterialTheme.typography.titleSmall)
+            Slider(value = retries.toFloat(), onValueChange = { retries = it.toInt().coerceIn(0, 10); settings.retryCount = retries }, valueRange = 0f..10f, steps = 9)
+            Text("A disabled automatic download never schedules WorkManager. A failed download never replaces a previously valid model.", style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun PolicySwitch(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
 private fun HubModelCard(model: HuggingFaceModel, onOpen: () -> Unit) {
     ElevatedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -156,9 +194,7 @@ private fun LocalModelCard(
                 LinearProgressIndicator(progress = { (progress / 100.0).toFloat() }, modifier = Modifier.fillMaxWidth())
                 Text("${progress.toInt()}% · ${formatBytes(model.downloadedBytes)} / ${formatBytes(model.sizeBytes)}", style = MaterialTheme.typography.bodySmall)
             }
-            if (model.status == "ERROR") {
-                Text("Download failed. Retry will reuse a valid partial download when the server supports HTTP Range.", style = MaterialTheme.typography.bodySmall)
-            }
+            if (model.status == "ERROR") Text("Download failed. Retry will reuse a valid partial download when the server supports HTTP Range.", style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 when {
                     model.isLoaded -> OutlinedButton(onClick = onUnload, modifier = Modifier.weight(1f)) { Text("Unload") }
