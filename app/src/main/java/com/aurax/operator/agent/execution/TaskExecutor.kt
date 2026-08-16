@@ -54,6 +54,7 @@ class TaskExecutor @Inject constructor(
         val taskId = db.dao().addTask(TaskEntity(input = input, status = "RUNNING"))
         val startedAt = System.currentTimeMillis()
         var actionCount = 0
+        var replanCount = 0
 
         fun enforceRuntimeLimits() {
             if (System.currentTimeMillis() - startedAt > policyRuntime.maxTaskSeconds() * 1_000L) throw SecurityException("Task time limit reached")
@@ -75,11 +76,14 @@ class TaskExecutor @Inject constructor(
             val android = AndroidTool(context)
             val relevantMemories = db.dao().searchMemories(input, limit = 5)
             val memoryContext = relevantMemories.joinToString("\n") { "- ${it.key}: ${it.value}" }
-            val steps = localModelPlanner.plan(input, memoryContext) ?: planner.plan(input, memoryContext)
+            var steps = (localModelPlanner.plan(input, memoryContext) ?: planner.plan(input, memoryContext)).toMutableList()
+            if (steps.isEmpty()) throw IllegalStateException("No executable plan was produced")
             val logs = mutableListOf<String>()
+            var index = 0
 
-            for ((index, step) in steps.withIndex()) {
+            while (index < steps.size) {
                 enforceRuntimeLimits()
+                val step = steps[index]
                 AppState.setStep(step.description, (index + 1).toFloat() / steps.size.coerceAtLeast(1))
                 val packageName = step.args["package"] ?: step.args["packageName"] ?: when (step.tool) {
                     "chrome_automation" -> "com.android.chrome"
@@ -128,19 +132,32 @@ class TaskExecutor @Inject constructor(
 
                 if (step.tool == "none") {
                     logs += step.description
+                    index++
                     continue
                 }
+
                 if (result != null) {
                     when (result) {
                         is ToolResult.Success -> logs += result.message
                         is ToolResult.Failure -> throw IllegalStateException(result.message)
                         is ToolResult.Blocked -> throw SecurityException(result.reason)
                     }
-                    verifyOrRecover(step, operator)
+                    val replacement = verifyOrReplan(step, operator, input)
+                    if (replacement != null) {
+                        replanCount++
+                        if (replanCount > MAX_REPLANS) throw IllegalStateException("Recovery replanning limit reached")
+                        steps = steps.toMutableList().apply {
+                            removeAt(index)
+                            addAll(index, replacement)
+                        }
+                        audit("PLAN_REPLACED", "${replacement.size} recovery step(s)", step.description)
+                        continue
+                    }
                     actionCount++
                     db.dao().addAction(OperatorActionEntity(taskId = taskId, packageName = packageName ?: "android", action = step.description, target = step.args.toString(), allowed = true))
                     audit("ACTION_VERIFIED", risk.name, step.description)
                     delay(50)
+                    index++
                     continue
                 }
 
@@ -151,11 +168,22 @@ class TaskExecutor @Inject constructor(
                     is ToolResult.Failure -> throw IllegalStateException(toolResult.message)
                     is ToolResult.Blocked -> throw SecurityException(toolResult.reason)
                 }
-                verifyOrRecover(step, operator)
+                val replacement = verifyOrReplan(step, operator, input)
+                if (replacement != null) {
+                    replanCount++
+                    if (replanCount > MAX_REPLANS) throw IllegalStateException("Recovery replanning limit reached")
+                    steps = steps.toMutableList().apply {
+                        removeAt(index)
+                        addAll(index, replacement)
+                    }
+                    audit("PLAN_REPLACED", "${replacement.size} recovery step(s)", step.description)
+                    continue
+                }
                 actionCount++
                 db.dao().addAction(OperatorActionEntity(taskId = taskId, packageName = packageName ?: step.tool, action = step.description, target = step.args.toString(), allowed = true))
                 audit("ACTION_VERIFIED", risk.name, step.description)
                 delay(50)
+                index++
             }
 
             AppState.setPhase(OperatorPhase.COMPLETED, "Task completed and verified")
@@ -174,12 +202,17 @@ class TaskExecutor @Inject constructor(
         }
     }
 
-    private suspend fun verifyOrRecover(step: PlanStep, operator: AccessibilityOperator) {
+    /** Returns a replacement plan when verification fails and a safe model-backed replan is possible. */
+    private suspend fun verifyOrReplan(
+        step: PlanStep,
+        operator: AccessibilityOperator,
+        originalInput: String
+    ): List<PlanStep>? {
         AppState.setPhase(OperatorPhase.VERIFYING, "Verifying: ${step.description}")
         var last = verifier.verify(step, operator)
         if (last.verified) {
             audit("VERIFICATION_PASSED", "${last.evidence} (confidence=${last.confidence})", step.description)
-            return
+            return null
         }
 
         audit("VERIFICATION_RETRY", last.evidence, step.description)
@@ -190,11 +223,35 @@ class TaskExecutor @Inject constructor(
             last = verifier.verify(step, operator)
             if (last.verified) return@repeat
         }
-        if (!last.verified) {
-            audit("VERIFICATION_FAILED", last.evidence, step.description)
-            throw IllegalStateException("Action was not verified: ${last.evidence}")
+        if (last.verified) {
+            audit("VERIFICATION_RECOVERED", "${last.evidence} (confidence=${last.confidence})", step.description)
+            return null
         }
-        audit("VERIFICATION_RECOVERED", "${last.evidence} (confidence=${last.confidence})", step.description)
+
+        val screen = operator.extract()
+        val screenSummary = screen?.allText?.take(3000).orEmpty()
+        if (screen?.hasPasswordField == true || screen?.hasSensitiveText == true || screen?.isPrivateBrowsing == true) {
+            audit("REPLAN_BLOCKED", "Sensitive/private state detected", step.description)
+            throw SecurityException("Recovery stopped because the observed screen is sensitive or private")
+        }
+
+        audit("REPLAN_REQUESTED", last.evidence, step.description)
+        val replacement = localModelPlanner.replan(
+            originalInput = originalInput,
+            failedStep = step,
+            failureEvidence = last.evidence,
+            screenSummary = screenSummary
+        )?.filterNot { candidate ->
+            candidate.tool == step.tool && candidate.description.equals(step.description, ignoreCase = true) && candidate.args == step.args
+        }
+
+        if (replacement.isNullOrEmpty()) {
+            audit("REPLAN_FAILED", "No safe replacement plan was produced", step.description)
+            throw IllegalStateException("Action was not verified and no safe recovery plan was available")
+        }
+
+        audit("REPLAN_READY", "${replacement.size} replacement step(s)", step.description)
+        return replacement
     }
 
     private fun extractKeyMemory(input: String): Pair<String, String>? {
@@ -210,5 +267,9 @@ class TaskExecutor @Inject constructor(
 
     private suspend fun audit(type: String, reason: String, action: String) {
         db.dao().addSafety(SafetyEventEntity(type = type, reason = reason, packageName = null, action = action))
+    }
+
+    companion object {
+        private const val MAX_REPLANS = 2
     }
 }
