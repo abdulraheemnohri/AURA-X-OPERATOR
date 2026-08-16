@@ -26,26 +26,37 @@ jobs:
         if: always()
         shell: bash
         run: |
-          set +e
           echo "===== AURA-X Detekt diagnostics ====="
-          if [ -f app/build/reports/detekt/detekt.xml ]; then
-            python3 - <<'PY'
-            import xml.etree.ElementTree as ET
-            from pathlib import Path
-            path = Path("app/build/reports/detekt/detekt.xml")
-            root = ET.parse(path).getroot()
-            count = 0
-            for issue in root.iter("error"):
-                count += 1
-                print(issue.attrib)
-            print(f"Detekt XML findings: {count}")
-            PY
-          else
-            echo "Detekt XML report was not generated."
-          fi
-          if [ -f app/build/reports/detekt/detekt.html ]; then
-            echo "Detekt HTML report generated: app/build/reports/detekt/detekt.html"
-          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          candidates = [
+              Path("app/build/reports/detekt/detekt.xml"),
+              Path("build/reports/detekt/detekt.xml"),
+          ]
+          report = next((p for p in candidates if p.is_file()), None)
+          if report is None:
+              print("Detekt XML report was not generated.")
+          else:
+              try:
+                  root = ET.parse(report).getroot()
+                  findings = []
+                  for element in root.iter():
+                      if element.tag.rsplit("}", 1)[-1] == "error":
+                          findings.append(element.attrib)
+                  print(f"Detekt XML report: {report}")
+                  print(f"Detekt XML findings: {len(findings)}")
+                  for finding in findings:
+                      print(finding)
+              except (ET.ParseError, OSError) as error:
+                  print(f"Unable to parse Detekt XML report: {error}")
+          PY
+          for report in app/build/reports/detekt/detekt.html build/reports/detekt/detekt.html; do
+            if [ -f "$report" ]; then
+              echo "Detekt HTML report generated: $report"
+            fi
+          done
           echo "===== End AURA-X Detekt diagnostics ====="
       - name: Upload detekt report
         if: always()
