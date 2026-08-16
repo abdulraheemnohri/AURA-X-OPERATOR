@@ -4,17 +4,20 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import com.aurax.operator.ai.model.ModelRepository
+import com.aurax.operator.ai.runtime.LlamaCppRuntime
 import java.io.File
 
 /**
  * Bridges the static NEXUS capability catalog to real device state.
  *
- * This deliberately uses conservative checks: a missing runtime/model is never
- * reported as available merely because the corresponding setting is enabled.
+ * A capability is reported as available only when its actual prerequisite is
+ * present. In particular, a valid GGUF file alone is not enough for llama.cpp:
+ * the packaged JNI runtime must also have loaded successfully.
  */
 class NexusRuntimeAvailabilityProvider(context: Context) {
     private val appContext = context.applicationContext
     private val modelRepository = ModelRepository(appContext)
+    private val llamaRuntime = LlamaCppRuntime(appContext)
 
     fun snapshot(): NexusRuntimeAvailability {
         val permissions = buildSet {
@@ -30,7 +33,10 @@ class NexusRuntimeAvailabilityProvider(context: Context) {
         }
 
         val models = buildSet {
-            if (modelRepository.isInstalled()) add("llama.cpp + GGUF")
+            // MODEL_GATED capabilities must only become available when the model
+            // asset is actually valid. llama.cpp additionally requires its JNI
+            // runtime to have loaded successfully.
+            if (llamaRuntime.isOperational()) add("llama.cpp + GGUF")
             if (File(appContext.filesDir, "models/whisper-base.bin").isFile) add("whisper-model")
             if (File(appContext.filesDir, "models/vision-model.bin").isFile) add("vision-model")
             if (File(appContext.filesDir, "models/embedding-model.bin").isFile) add("embedding-model")
