@@ -45,8 +45,16 @@ class LlavaVisionRuntime : VisionRuntime {
 
     override fun isAvailable(): Boolean = isLoaded && getStatus() == VisionRuntimeStatus.READY
 
+    /** True only when the native llava JNI library was successfully loaded. */
+    fun isNativeRuntimeAvailable(): Boolean = nativeLibraryAvailable
+
     override fun load(modelPath: String): Boolean {
         status = VisionRuntimeStatus.LOADING
+        if (!nativeLibraryAvailable) {
+            status = VisionRuntimeStatus.ERROR
+            isLoaded = false
+            return false
+        }
         return try {
             isLoaded = nativeLoad(modelPath)
             status = if (isLoaded) VisionRuntimeStatus.READY else VisionRuntimeStatus.ERROR
@@ -65,13 +73,20 @@ class LlavaVisionRuntime : VisionRuntime {
     }
 
     override fun unload() {
-        runCatching { nativeUnload() }
-            .onFailure { Log.e("LlavaVisionRuntime", "Error unloading vision runtime", it) }
+        if (nativeLibraryAvailable) {
+            runCatching { nativeUnload() }
+                .onFailure { Log.e("LlavaVisionRuntime", "Error unloading vision runtime", it) }
+        }
         isLoaded = false
         status = VisionRuntimeStatus.NOT_LOADED
     }
 
     override fun getStatus(): VisionRuntimeStatus {
+        if (!nativeLibraryAvailable) {
+            isLoaded = false
+            status = VisionRuntimeStatus.ERROR
+            return status
+        }
         status = runCatching {
             when (nativeGetStatus()) {
                 0 -> VisionRuntimeStatus.NOT_LOADED
@@ -92,9 +107,11 @@ class LlavaVisionRuntime : VisionRuntime {
     private external fun nativeGetStatus(): Int
 
     companion object {
-        init {
-            runCatching { System.loadLibrary("aurax_llava") }
-                .onFailure { Log.w("LlavaVisionRuntime", "Vision native library not available") }
-        }
+        private val nativeLibraryAvailable: Boolean = runCatching {
+            System.loadLibrary("aurax_llava")
+            true
+        }.onFailure {
+            Log.w("LlavaVisionRuntime", "Vision native library not available")
+        }.getOrDefault(false)
     }
 }
