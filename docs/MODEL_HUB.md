@@ -27,7 +27,34 @@ Authentication is intentionally not required for public model discovery. Private
 
 ## Downloads
 
-Downloads use WorkManager and the existing resumable HTTP pipeline. Wi-Fi-only mode maps to `NetworkType.UNMETERED`. Partial files use a `.part` suffix and HTTP Range requests when the server supports them. Completed files are renamed only after integrity validation.
+Downloads use WorkManager and the existing resumable HTTP pipeline. The automatic-download policy is stored by `ModelDownloadSettings` and is exposed directly in Model Center.
+
+Default policy:
+
+- automatic default-model download: ON
+- unmetered / Wi-Fi only: ON
+- charging only: OFF
+- pause below battery: 20%
+- automatic retry: ON
+- retry count: 3
+- maximum parallel downloads: 1
+- speed limit: unlimited
+
+Wi-Fi-only mode maps to `NetworkType.UNMETERED`. Partial files use a `.part` suffix and HTTP Range requests when the server supports them. Completed files are finalized only after integrity validation.
+
+The download worker also enforces the configured battery threshold and a bounded retry count. This prevents a failed first-run download from becoming an endless background workload.
+
+### Download controls
+
+Model Center exposes:
+
+- Automatic default-model download
+- Unmetered / Wi-Fi only
+- Charging only
+- Battery pause threshold
+- Maximum automatic retries
+
+The remaining stored policy values are intentionally kept in the typed local policy object so the queue/transport layer can enforce them without introducing another settings namespace.
 
 ## Primary model
 
@@ -43,7 +70,7 @@ The download URL must point at the concrete `resolve/main/...` asset, not the re
 
 ## Storage and recovery
 
-Before installation, AURA-X checks available app-private storage. Interrupted downloads remain resumable. A failed integrity check leaves the model unusable and records `ERROR` rather than pretending that installation succeeded.
+Before installation, AURA-X checks available app-private storage. Interrupted downloads remain resumable. A failed integrity check leaves the model unusable and records `ERROR` rather than pretending that installation succeeded. A previously valid model is preserved when a replacement download fails validation.
 
 ## Model actions
 
@@ -60,6 +87,12 @@ Before installation, AURA-X checks available app-private storage. Interrupted do
 - Select active local model through the existing settings/runtime layer
 
 Built-in models cannot be deleted. A loaded model must be unloaded before deletion.
+
+## Capability truthfulness
+
+A model file does not automatically make every AI feature READY. Runtime state is independently checked.
+
+For example, the current vision JNI boundary does **not** report llava as loaded because the repository does not yet bundle a real llava.cpp runtime. Vision therefore remains runtime-gated until the native dependency and end-to-end inference path are implemented.
 
 ## Troubleshooting
 
@@ -78,3 +111,7 @@ Confirm the file is GGUF for llama.cpp, the file is complete, and the device has
 ### Wi-Fi-only does not start
 
 The WorkManager request requires an unmetered network. Disable Wi-Fi-only when mobile data is acceptable.
+
+### Automatic download never starts
+
+Check Model Center's automatic-download policy, network constraints, charging policy and battery threshold. The worker will defer rather than consume the configured battery reserve.
