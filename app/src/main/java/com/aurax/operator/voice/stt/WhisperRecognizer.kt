@@ -35,11 +35,20 @@ class WhisperRecognizer {
     private var recorder: AudioRecord? = null
     private var worker: Thread? = null
 
-    fun isAvailable(): Boolean = nativeLoaded
+    /** True only when the packaged Whisper JNI library loaded successfully. */
+    fun isRuntimeAvailable(): Boolean = nativeLoaded
+
+    /** True only when the native runtime and a usable Whisper model are both present. */
+    fun isAvailable(modelPath: String? = null): Boolean {
+        if (!nativeLoaded) return false
+        if (modelPath == null) return true
+        val model = File(modelPath)
+        return model.isFile && model.length() > 0L
+    }
 
     @Synchronized
     fun start(modelPath: String, language: String, onText: (String) -> Unit): Boolean {
-        if (!nativeLoaded || running || !File(modelPath).isFile) return false
+        if (!isAvailable(modelPath) || running) return false
 
         val minimum = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNELS, ENCODING)
         if (minimum <= 0) return false
@@ -77,20 +86,13 @@ class WhisperRecognizer {
                             val read = audioRecord.read(shortBuffer, 0, shortBuffer.size, AudioRecord.READ_BLOCKING)
                             if (read <= 0) break
                             val copy = minOf(read, maxSamples - offset)
-                            for (i in 0 until copy) {
-                                pcm[offset + i] = shortBuffer[i] / 32768.0f
-                            }
+                            for (i in 0 until copy) pcm[offset + i] = shortBuffer[i] / 32768.0f
                             offset += copy
                         }
 
                         if (offset > SAMPLE_RATE / 4) {
                             val result = runCatching {
-                                nativeTranscribe(
-                                    modelPath,
-                                    pcm.copyOf(offset),
-                                    language.ifBlank { "auto" },
-                                    4
-                                )
+                                nativeTranscribe(modelPath, pcm.copyOf(offset), language.ifBlank { "auto" }, 4)
                             }.getOrDefault("").trim()
                             Handler(Looper.getMainLooper()).post { onText(result) }
                         } else {
