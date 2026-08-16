@@ -24,6 +24,7 @@ import com.aurax.operator.operator.AutomationPolicyEngine
 import com.aurax.operator.operator.AuraAccessibilityService
 import com.aurax.operator.operator.AccessibilityOperator
 import com.aurax.operator.operator.OperatorRuntime
+import com.aurax.operator.operator.SemanticScreenContextBuilder
 import com.aurax.operator.tools.android.AndroidTool
 import com.aurax.operator.tools.chrome.ChromeTool
 import com.aurax.operator.tools.registry.RiskLevel
@@ -229,7 +230,8 @@ class TaskExecutor @Inject constructor(
         }
 
         val screen = operator.extract()
-        val screenSummary = screen?.allText?.take(3000).orEmpty()
+        val semanticScreen = screen?.let(SemanticScreenContextBuilder::build)
+        val screenSummary = semanticScreen?.asPlannerContext()?.take(3000).orEmpty()
         if (screen?.hasPasswordField == true || screen?.hasSensitiveText == true || screen?.isPrivateBrowsing == true) {
             audit("REPLAN_BLOCKED", "Sensitive/private state detected", step.description)
             throw SecurityException("Recovery stopped because the observed screen is sensitive or private")
