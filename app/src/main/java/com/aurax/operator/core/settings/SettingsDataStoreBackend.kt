@@ -29,7 +29,7 @@ class SettingsDataStoreBackend(context: Context) {
 
     init {
         scope.launch {
-            cache.value = appContext.auraSettingsDataStore.data.first().asMap()
+            cache.value = appContext.auraSettingsDataStore.data.first().asStringMap()
         }
     }
 
@@ -52,6 +52,5 @@ class SettingsDataStoreBackend(context: Context) {
     }
 }
 
-private fun Preferences.asMap(): Map<String, Any> = buildMap {
-    for ((key, value) in this@asMap) put(key.name, value as Any)
-}
+private fun Preferences.asStringMap(): Map<String, Any> =
+    asMap().entries.associate { (key, value) -> key.name to value }
