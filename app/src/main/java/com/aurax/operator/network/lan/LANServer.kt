@@ -125,6 +125,8 @@ class LANServer(
         }
     }
 
+    internal suspend fun handleRequestForTesting(request: String): String = processRequest(request)
+
     private suspend fun processRequest(request: String): String {
         return when {
             request.startsWith("GET /models") -> {

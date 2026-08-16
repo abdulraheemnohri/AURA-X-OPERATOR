@@ -10,7 +10,13 @@ class PluginRegistryTest {
     fun registersTrustedPluginAndExposesTools() = runBlocking {
         val registry = PluginRegistry()
         val plugin = object : OperatorPlugin {
-            override val descriptor = PluginDescriptor("test.plugin", "Test", "1.0.0", "AURA-X")
+            override val descriptor = PluginDescriptor(
+                id = "test.plugin",
+                name = "Test",
+                version = "1.0.0",
+                author = "AURA-X",
+                description = "Test Plugin"
+            )
             override fun tools() = listOf(
                 OperatorTool("test.echo", "Echo input", ToolRisk.LOW) { ToolResult(true, "ok") }
             )
@@ -25,7 +31,13 @@ class PluginRegistryTest {
     fun rejectsDuplicatePluginIds() {
         val registry = PluginRegistry()
         val plugin = object : OperatorPlugin {
-            override val descriptor = PluginDescriptor("duplicate.plugin", "Test", "1.0.0", "AURA-X")
+            override val descriptor = PluginDescriptor(
+                id = "duplicate.plugin",
+                name = "Test",
+                version = "1.0.0",
+                author = "AURA-X",
+                description = "Duplicate Plugin"
+            )
             override fun tools() = emptyList<OperatorTool>()
         }
 

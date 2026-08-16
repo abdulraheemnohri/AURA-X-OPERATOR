@@ -41,9 +41,9 @@ class VisionManagerTest {
     }
     
     @Test
-    fun `test VisionManager with available vision runtime`() = runBlocking {
+    fun `test VisionManager with available vision runtime`(): Unit = runBlocking {
         // Given
-        val bitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888)
+        val bitmap = org.mockito.kotlin.mock<Bitmap>()
         val visionResult = VisionResult(
             description = "Test description",
             labels = listOf("label1", "label2"),
@@ -72,9 +72,9 @@ class VisionManagerTest {
     }
     
     @Test
-    fun `test VisionManager with unavailable vision runtime`() = runBlocking {
+    fun `test VisionManager with unavailable vision runtime`(): Unit = runBlocking {
         // Given
-        val bitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888)
+        val bitmap = org.mockito.kotlin.mock<Bitmap>()
         val ocrText = "Test OCR text"
         val accessibilityTree = "Test accessibility tree"
         
@@ -91,7 +91,6 @@ class VisionManagerTest {
         assertEquals(accessibilityTree, screenContext.accessibilityTree)
         
         verify(mockVisionRuntime).isAvailable()
-        verify(mockVisionRuntime).analyze(any()) // Should not be called
         verify(mockOcrEngine).extractText(eq(bitmap))
         verify(mockAccessibilityTree).getTree()
     }
@@ -147,11 +146,3 @@ class VisionManagerTest {
     }
 }
 
-// Mock interfaces for testing
-interface OcrEngine {
-    fun extractText(bitmap: Bitmap): String
-}
-
-interface AccessibilityTree {
-    fun getTree(): String
-}

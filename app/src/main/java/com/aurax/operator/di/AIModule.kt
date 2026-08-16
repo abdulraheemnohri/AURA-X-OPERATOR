@@ -12,9 +12,4 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object AIModule {
-    @Provides
-    @Singleton
-    fun provideLlamaCppRuntime(@ApplicationContext context: Context): LlamaCppRuntime {
-        return LlamaCppRuntime(context)
-    }
 }

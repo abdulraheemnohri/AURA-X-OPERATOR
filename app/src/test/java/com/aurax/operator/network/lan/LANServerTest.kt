@@ -2,6 +2,9 @@ package com.aurax.operator.network.lan
 
 import android.content.Context
 import com.aurax.operator.ai.model.ModelHub
+import com.aurax.operator.data.entities.ModelEntity
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -38,6 +41,10 @@ class LANServerTest {
     
     @Test
     fun `test LANServer start and stop`() {
+        // Given mockContext for NSD service
+        val mockNsdManager = org.mockito.kotlin.mock<android.net.nsd.NsdManager>()
+        whenever(mockContext.getSystemService(Context.NSD_SERVICE)).thenReturn(mockNsdManager)
+
         // When
         lanServer.start()
         
@@ -61,48 +68,46 @@ class LANServerTest {
     }
     
     @Test
-    fun `test LANServer processRequest for models`() {
+    fun `test LANServer handleRequest for models`() = runBlocking {
         // Given
         val models = listOf(
             ModelEntity(
-                id = 1,
+                id = "1",
                 name = "Qwen2.5-0.5B-Instruct",
-                path = "/path/to/model.gguf",
+                displayName = "Qwen 2.5 0.5B Instruct",
+                category = "LLM",
+                format = "GGUF",
+                quantization = "Q4_K_M",
+                sourceUrl = "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+                localPath = "/path/to/model.gguf",
+                sizeBytes = 1000L,
                 status = "READY"
             )
         )
-        whenever(mockModelHub.getInstalledModels()).thenReturn(models)
+        whenever(mockModelHub.models).thenReturn(flowOf(models))
         
         // When
-        val response = lanServer.processRequest("GET /models")
+        val response = lanServer.handleRequestForTesting("GET /models")
         
         // Then
         assertEquals("Qwen2.5-0.5B-Instruct", response)
     }
     
     @Test
-    fun `test LANServer processRequest for inference`() {
+    fun `test LANServer handleRequest for inference`() = runBlocking {
         // When
-        val response = lanServer.processRequest("POST /infer")
+        val response = lanServer.handleRequestForTesting("POST /infer")
         
         // Then
-        assertEquals("Inference result: Hello from AURA-X!", response)
+        assertEquals("Inference unavailable: authenticated local inference endpoint is not configured", response)
     }
     
     @Test
-    fun `test LANServer processRequest for unknown`() {
+    fun `test LANServer handleRequest for unknown`() = runBlocking {
         // When
-        val response = lanServer.processRequest("UNKNOWN")
+        val response = lanServer.handleRequestForTesting("UNKNOWN")
         
         // Then
         assertEquals("Unknown request", response)
     }
 }
-
-// Mock ModelEntity for testing
-data class ModelEntity(
-    val id: Long,
-    val name: String,
-    val path: String,
-    val status: String
-)

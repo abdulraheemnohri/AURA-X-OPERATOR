@@ -1,9 +1,9 @@
 package com.aurax.operator.nexus
 
-import kotlin.test.Test
-import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
 
 class NexusFeatureRegistryTest {
     @Test
@@ -23,11 +23,14 @@ class NexusFeatureRegistryTest {
     @Test
     fun modelGatedCapabilityRequiresItsRuntimeAsset() {
         val capability = NexusFeatureRegistry.byId("models.llama_cpp")!!
-        assertFalse(NexusFeatureRegistry.available(capability, NexusRuntimeAvailability()))
+        assertFalse(NexusFeatureRegistry.available(capability = capability, runtime = NexusRuntimeAvailability()))
         assertTrue(
             NexusFeatureRegistry.available(
-                capability,
-                NexusRuntimeAvailability(installedModels = setOf("llama.cpp + GGUF"))
+                capability = capability,
+                runtime = NexusRuntimeAvailability(
+                    installedModels = setOf("llama.cpp + GGUF"),
+                    installedRuntimes = setOf("llama.cpp")
+                )
             )
         )
     }

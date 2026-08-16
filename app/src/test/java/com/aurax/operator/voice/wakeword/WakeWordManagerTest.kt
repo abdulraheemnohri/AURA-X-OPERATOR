@@ -104,6 +104,5 @@ class WakeWordManagerTest {
         
         // Then (no exception should be thrown)
         assertEquals(true, true)
-        verify(mockContext) // Verify context is used (placeholder)
     }
 }
