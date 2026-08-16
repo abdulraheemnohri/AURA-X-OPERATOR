@@ -79,8 +79,23 @@ class QRPairingManager(
      * Gets the local IP address of the device.
      */
     private fun getLocalIpAddress(): String {
-        // TODO: Implement actual IP address retrieval
-        return "192.168.1.100" // Placeholder
+        try {
+            val interfaces = java.net.NetworkInterface.getNetworkInterfaces()
+            while (interfaces.hasMoreElements()) {
+                val networkInterface = interfaces.nextElement()
+                if (networkInterface.isLoopback || !networkInterface.isUp) continue
+                val addresses = networkInterface.inetAddresses
+                while (addresses.hasMoreElements()) {
+                    val address = addresses.nextElement()
+                    if (!address.isLoopbackAddress && address is java.net.Inet4Address) {
+                        return address.hostAddress ?: "127.0.0.1"
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting local IP address: ${e.message}")
+        }
+        return "127.0.0.1"
     }
     
     /**

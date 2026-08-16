@@ -8,10 +8,10 @@ import org.mockito.kotlin.mock
  */
 
 // Generic mock helper
-inline fun <reified T : Any> mock(): T = mock()
+inline fun <reified T : Any> mockHelper(): T = Mockito.mock(T::class.java)
 
 // Mock with default answers
-inline fun <reified T : Any> mock(defaultAnswer: Mockito.ReturnDefaultValues): T {
+inline fun <reified T : Any> mockHelper(defaultAnswer: org.mockito.stubbing.Answer<Any>): T {
     return Mockito.mock(T::class.java, defaultAnswer)
 }
 
