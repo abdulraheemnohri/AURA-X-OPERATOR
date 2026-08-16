@@ -18,8 +18,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.2"
-      - name: Run detekt
-        run: gradle --no-daemon --stacktrace detekt
+      - name: Run app Detekt
+        run: gradle --no-daemon --stacktrace :app:detekt
       - name: Upload detekt report
         if: always()
         uses: actions/upload-artifact@v5
