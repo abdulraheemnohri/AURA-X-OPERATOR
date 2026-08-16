@@ -36,24 +36,20 @@ class ModelDownloadWorker @AssistedInject constructor(
             return Result.retry()
         }
 
-        return try {
-            ModelDownloadConcurrencyGate.withPermit(settings.maximumParallelDownloads) {
-                downloader.download(model, wifiOnly)
-            }.fold(
-                onSuccess = { Result.success() },
-                onFailure = { error ->
-                    when {
-                        isStopped -> Result.failure()
-                        !autoRetry -> Result.failure(workDataOf(KEY_ERROR to (error.message ?: "Download failed")))
-                        runAttemptCount >= maxRetries -> Result.failure(workDataOf(KEY_ERROR to (error.message ?: "Download failed after retries")))
-                        isTransient(error) -> Result.retry()
-                        else -> Result.failure(workDataOf(KEY_ERROR to (error.message ?: "Download failed")))
-                    }
+        return ModelDownloadConcurrencyGate.withPermit(settings.maximumParallelDownloads) {
+            downloader.download(model, wifiOnly)
+        }.fold(
+            onSuccess = { Result.success() },
+            onFailure = { error ->
+                when {
+                    isStopped -> Result.failure()
+                    !autoRetry -> Result.failure(workDataOf(KEY_ERROR to (error.message ?: "Download failed")))
+                    runAttemptCount >= maxRetries -> Result.failure(workDataOf(KEY_ERROR to (error.message ?: "Download failed after retries")))
+                    isTransient(error) -> Result.retry()
+                    else -> Result.failure(workDataOf(KEY_ERROR to (error.message ?: "Download failed")))
                 }
-            )
-        } catch (cancelled: kotlinx.coroutines.CancellationException) {
-            Result.failure(workDataOf(KEY_ERROR to "Download cancelled"))
-        }
+            }
+        )
     }
 
     private fun isCharging(): Boolean {
