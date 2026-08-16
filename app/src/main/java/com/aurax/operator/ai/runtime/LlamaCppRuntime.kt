@@ -64,7 +64,13 @@ class LlamaCppRuntime(context: Context) : AIModelRuntime {
         if (loaded) runCatching { nativeUnload() }
     }
 
-    override fun isReady(): Boolean = loaded && repository.isInstalled()
+    /** True only when the packaged native llama.cpp JNI library loaded successfully. */
+    fun isNativeRuntimeAvailable(): Boolean = loaded
+
+    /** True when both the native runtime and a validated primary GGUF model exist. */
+    fun isOperational(): Boolean = loaded && repository.status().isValid
+
+    override fun isReady(): Boolean = isOperational()
     override fun setThreads(value: Int) { configuredThreads = value.coerceIn(1, 12) }
     override fun setContextLength(value: Int) { configuredContext = value.coerceIn(256, 4096) }
     override fun setMaxOutputTokens(value: Int) { configuredOutput = value.coerceIn(32, 2048) }
