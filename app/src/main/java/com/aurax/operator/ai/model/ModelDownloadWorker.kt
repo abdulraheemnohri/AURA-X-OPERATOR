@@ -5,6 +5,7 @@ import android.os.BatteryManager
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.io.IOException
@@ -28,10 +29,6 @@ class ModelDownloadWorker @AssistedInject constructor(
         val model = hub.get(modelId) ?: return Result.failure()
         if (isStopped) return Result.failure()
 
-        // WorkManager's BatteryNotLow constraint is intentionally supplemented
-        // with a deterministic 20% floor so a long first-run download does not
-        // consume the last portion of the battery on devices that report a
-        // precise percentage.
         val battery = applicationContext.getSystemService(BatteryManager::class.java)
         val percent = battery?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
         if (percent in 0..19 && !isCharging()) {
