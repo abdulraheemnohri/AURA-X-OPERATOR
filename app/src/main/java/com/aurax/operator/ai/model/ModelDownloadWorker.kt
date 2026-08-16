@@ -29,9 +29,10 @@ class ModelDownloadWorker @AssistedInject constructor(
         val model = hub.get(modelId) ?: return Result.failure()
         if (isStopped) return Result.failure()
 
+        val settings = ModelDownloadSettings(applicationContext)
         val battery = applicationContext.getSystemService(BatteryManager::class.java)
         val percent = battery?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
-        if (percent in 0..19 && !isCharging()) {
+        if (percent >= 0 && percent < settings.pauseBelowBatteryPercent && !isCharging()) {
             return Result.retry()
         }
 
